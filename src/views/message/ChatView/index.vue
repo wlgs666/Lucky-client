@@ -141,6 +141,7 @@
   const iconMap = {
     Top,
   };
+
   // 右键菜单位置(注意:这里必须使用ref定义)
   const position = ref({
     top: 0,
@@ -148,17 +149,21 @@
     bottom: 0,
     right: 0,
   } as DOMRect);
+
   // 右键菜单配置:options是菜单项动态计算,currentCallback是调用的回调函数
   const menuConfig = reactive({
     options: [] as DropdownOption[],
     // 用于存储当前会话的回调函数
     currentCallback: async (action: MenuAction) => {},
   });
+
   const menuRef = ref<DropdownInstance>();
+
   const triggerRef = ref({
     getBoundingClientRect: () => position.value,
   });
-  // 右键触发方法(核心:同步选项到menuConfig)
+
+  // 右键触发方法(核心:同步选项和回调函数到menuConfig对象中)
   const handleContextmenu = (item: Chats, event: MouseEvent) => {
     event.preventDefault();
 
@@ -179,13 +184,11 @@
         {
           value: "pin",
           label: chat.isTop === 1 ? "取消置顶" : "置顶会话",
-          // icon: chat.isTop === 1 ? "TopOff" : "Top",
           divided: false,
         },
         {
           value: "mute",
           label: chat.isMute === 1 ? "取消免打扰" : "消息免打扰",
-          icon: chat.isMute === 1 ? "Volume" : "VolumeX",
           divided: false,
         },
         {
@@ -207,11 +210,9 @@
         switch (action) {
           case "pin":
             await chatMessageStore.handlePinChat(chat);
-            ElMessage.success(`已${chat.isTop === 1 ? "设置" : "取消"}会话置顶`);
             break;
           case "mute":
             await chatMessageStore.handleMuteChat(chat);
-            ElMessage.success(`已${chat.isMute === 1 ? "设置" : "取消"}消息免打扰`);
             break;
           case "delete":
             const isConfirm = await ElMessageBox.confirm(`确定删除与 ${chat.name} 的会话?`, "删除会话", {
@@ -326,20 +327,39 @@
   .item {
     cursor: pointer;
     user-select: none;
-    transition: background 0.2s;
+    transition: background 0.2s ease;
 
     /* 置顶样式保持原来语义 */
     &.pinned {
-      background-color: var(--side-active-bg-color);
+      // background-color: var(--side-active-bg-color);
+      background-color: #f2f2f2;
       color: var(--side-active-color);
     }
 
     &:hover {
-      background-color: rgba(0, 0, 0, 0.06);
+      background-color: #e7e6e6d4;
     }
 
     &.active {
-      background-color: rgba(0, 0, 0, 0.06);
+      background-color: #e5e5e5;
+    }
+  }
+
+  html.dark .item {
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s ease;
+    &.pinned {
+      background-color: #504f4f;
+      color: var(--side-active-bg-color);
+    }
+
+    &:hover {
+      background-color: #4a4949;
+    }
+
+    &.active {
+      background-color: #585757;
     }
   }
 
