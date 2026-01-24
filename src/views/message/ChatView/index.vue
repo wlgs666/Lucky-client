@@ -244,6 +244,12 @@
 
     // 处理右键菜单打开事件
     menuRef.value?.handleOpen();
+
+    // 处理当右键菜单打开时用户触发滚轮滚动事件
+    //  - 1.禁止滚轮滚动事件
+    //  - 2.当触发滚轮滚动事件时，关闭右键菜单
+    // 目前选择的是方案2:可考虑优化当滚动条位置在最顶部/最底部时，向上/向下滚动不触发菜单关闭
+    boxRef.value?.addEventListener("wheel", handleChatListWheel, { passive: true });
   };
 
   // 模板中菜单点击的统一处理方法(本质上还是调用currentCallback，只是在此之上增加了一层封装，使其更加健壮)
@@ -251,6 +257,10 @@
     // 调用当前绑定的回调函数
     await menuConfig.currentCallback(action);
     // 执行完操作后关闭菜单
+    menuRef.value?.handleClose();
+  };
+
+  const handleChatListWheel = () => {
     menuRef.value?.handleClose();
   };
 
@@ -297,6 +307,10 @@
   //     callback,
   //   };
   // };
+  onBeforeUnmount(() => {
+    // 移除事件监听器
+    boxRef.value?.removeEventListener("wheel", handleChatListWheel);
+  });
 </script>
 
 <style lang="scss" scoped>
