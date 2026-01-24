@@ -40,15 +40,20 @@
       </div>
 
       <!-- 消息区域：有 message 则渲染（支持简单 HTML），否则显示占位空格 -->
-      <div
-        v-if="displayMessageHtml"
-        v-dompurify="displayMessageHtml"
-        :title="plainTextMessage"
-        aria-live="polite"
-        class="chat-item__message"
-      />
-      <div v-else aria-hidden="false" class="chat-item__message chat-item__message--placeholder">
-        &nbsp;&ensp;&emsp;&thinsp;&zwnj;&zwj;
+      <div class="chat-item__footer">
+        <div
+          v-if="displayMessageHtml"
+          class="chat-item__message"
+          v-dompurify="displayMessageHtml"
+          :title="plainTextMessage"
+          aria-live="polite"
+        />
+        <div v-else class="chat-item__message chat-item__message--placeholder" aria-hidden="false">
+          &nbsp;&ensp;&emsp;&thinsp;&zwnj;&zwj;
+        </div>
+        <div v-show="props.data.isMute" class="chat-item__icon">
+          <el-icon><MuteNotification /></el-icon>
+        </div>
       </div>
     </div>
   </div>
@@ -63,10 +68,10 @@
    *  - 简易 HTML 清理函数（非完全安全，请在生产中考虑 DOMPurify）
    */
 
-  import { computed } from "vue";
-  import { useTimeFormat } from "@/hooks/useTimeFormat";
-  import { MessageType } from "@/constants";
   import Avatar from "@/components/Avatar/index.vue";
+  import { MessageType } from "@/constants";
+  import { useTimeFormat } from "@/hooks/useTimeFormat";
+  import { computed } from "vue";
 
   const { useFriendlyTime } = useTimeFormat();
 
@@ -78,7 +83,7 @@
     message?: string; // 可能为空
     messageTime?: number | "";
     unread?: number;
-    isMute?: 0 | 1;
+    isMute?: number | 0 | 1;
   }
 
   /* -------------------- props / emits -------------------- */
@@ -106,7 +111,9 @@
   );
 
   // 是否群聊（用于统一群聊头像占位色）
-  const isGroup = computed(() => (props.data as any)?.chatType === MessageType.GROUP_MESSAGE.code || !!(props.data as any)?.groupName);
+  const isGroup = computed(
+    () => (props.data as any)?.chatType === MessageType.GROUP_MESSAGE.code || !!(props.data as any)?.groupName
+  );
 
   // 将 message 转为纯文本（用于 title / aria）
   const plainTextMessage = computed(() => {
@@ -215,7 +222,9 @@
     gap: $gap;
     cursor: pointer;
     //border-radius: 6px;
-    transition: background-color 0.18s ease, transform 0.08s ease;
+    transition:
+      background-color 0.18s ease,
+      transform 0.08s ease;
     user-select: none;
     outline: none;
 
@@ -287,16 +296,21 @@
       }
     }
 
+    &__footer {
+      display: flex;
+    }
+
     /* 消息预览 - 支持两行截断 */
     &__message {
       font-size: $time-message-font-size;
       color: $message-color;
+      flex: 1;
       line-height: 1.2;
       // display: -webkit-box;
       -webkit-box-orient: vertical;
       // -webkit-line-clamp: 2; /* 两行显示 */
-      // overflow: hidden;
-      // text-overflow: ellipsis;
+      overflow: hidden;
+      text-overflow: ellipsis;
       word-break: break-word;
       white-space: nowrap;
       overflow: hidden;
@@ -309,6 +323,13 @@
       color: $placeholder-color;
       opacity: 0.9;
       font-style: italic;
+    }
+
+    &__icon {
+      font-size: $time-message-font-size;
+      color: $message-color;
+      margin-left: auto;
+      margin-right: 2px;
     }
   }
 
