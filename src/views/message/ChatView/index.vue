@@ -40,6 +40,7 @@
               :command="option.value"
               :icon="getIconComponent(option.icon)"
               :divided="option.divided"
+              :style="{ 'user-select': 'none' }"
             >
               {{ option.label }}
             </el-dropdown-item>
@@ -59,7 +60,7 @@
   import type Chats from "@/database/entity/Chats";
   import { useChatStore } from "@/store/modules/chat";
   import { useMediaCacheStore } from "@/store/modules/media";
-  import { Top } from "@element-plus/icons-vue";
+  import { ArrowDownBold, ArrowUpBold, Bell, Delete, MuteNotification } from "@element-plus/icons-vue";
   import { useWindowSize } from "@vueuse/core";
   import type { DropdownInstance } from "element-plus";
   import { computed, reactive, ref } from "vue";
@@ -76,8 +77,6 @@
     divided?: boolean;
   }
 
-  // ---------------------------------
-
   // 假设 chatMessageStore 的类型（示例）
   interface ChatMessageStore {
     getChatById: (chatId: string | number) => Chats | undefined;
@@ -88,6 +87,20 @@
 
   const chatMessageStore = useChatStore();
   const mediaStore = useMediaCacheStore();
+
+  const iconMap = {
+    ArrowDownBold,
+    ArrowUpBold,
+    Bell,
+    MuteNotification,
+    Delete,
+  };
+
+  const menuRef = ref<DropdownInstance>();
+
+  const triggerRef = ref({
+    getBoundingClientRect: () => menuPosition.value,
+  });
 
   const { height: windowHeight } = useWindowSize();
   const boxRef = ref<HTMLElement | null>(null);
@@ -101,7 +114,6 @@
   const totalCount = computed(() => chatMessageStore.chatList.length ?? 0);
   const boxHeight = computed(() => (chatMessageStore.chatList.length ?? 0) * rowHeight);
 
-  console.log(chatMessageStore.chatList);
   // 注意：保持 item 的引用不被 clone，slice 返回的仍是原始对象引用，子组件可以响应更新
   const offsetData = computed(() => {
     const data = chatMessageStore.chatList || [];
@@ -111,7 +123,6 @@
     offsetIndex.value = startIndex;
     return data.slice(startIndex, startIndex + visibleCount).map((item, i) => ({ item, absIndex: startIndex + i }));
   });
-  console.log("offsetData", offsetData.value);
 
   const handleScroll = () => {
     if (rafId !== null) cancelAnimationFrame(rafId);
@@ -137,13 +148,8 @@
     return item.chatId === selectedId.value;
   };
 
-  // 映射图标名称到组件
-  const iconMap = {
-    Top,
-  };
-
   // 右键菜单位置(注意:这里必须使用ref定义)
-  const position = ref({
+  const menuPosition = ref({
     top: 0,
     left: 0,
     bottom: 0,
@@ -157,19 +163,13 @@
     currentCallback: async (action: MenuAction) => {},
   });
 
-  const menuRef = ref<DropdownInstance>();
-
-  const triggerRef = ref({
-    getBoundingClientRect: () => position.value,
-  });
-
   // 右键触发方法(核心:同步选项和回调函数到menuConfig对象中)
   const handleContextmenu = (item: Chats, event: MouseEvent) => {
     event.preventDefault();
 
     // 右键菜单弹出的位置就是鼠标指针所处的位置
     const { clientX, clientY } = event;
-    position.value = DOMRect.fromRect({ x: clientX, y: clientY });
+    menuPosition.value = DOMRect.fromRect({ x: clientX, y: clientY });
 
     // 响应式获取当前会话(基于已封装好的store)
     const currentItem: ComputedRef<Chats> = computed(() => {
@@ -184,17 +184,19 @@
         {
           value: "pin",
           label: chat.isTop === 1 ? "取消置顶" : "置顶会话",
+          // icon: chat.isTop === 1 ? "ArrowDownBold" : "ArrowUpBold",
           divided: false,
         },
         {
           value: "mute",
           label: chat.isMute === 1 ? "取消免打扰" : "消息免打扰",
+          // icon: chat.isMute === 1 ? "MuteNotification" : "Bell",
           divided: false,
         },
         {
           value: "delete",
           label: "删除会话",
-          icon: "Delete",
+          // icon: "Delete",
           divided: true,
         },
       ];
