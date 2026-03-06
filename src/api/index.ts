@@ -363,6 +363,12 @@ export default {
   /** 头像上传 */
   uploadAvatar: (data: FormData) => Http.upload("/oss/api/v1/media/avatar/upload", data),
 
+  /** 获取媒体文件url */
+  getMediaPresignedPutUrl: (params: any) => Http.get("/oss/api/v1/media/getPresignedPutUrl", { params }),
+
+  /** 获取文件url */
+  getFilePresignedPutUrl: (params: any) => Http.get("/oss/api/v1/file/getPresignedPutUrl", { params }),
+
 
 
   /** ================================================== 日志模块 =============================================================== */

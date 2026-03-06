@@ -6,7 +6,7 @@
     </template>
 
 <template v-if="message.messageContentType == MessageContentType.IMAGE.code">
-      <img :src="message.messageBody?.path" alt="Image message" @click="handlePreview(message.messageBody?.path)"
+      <img :src="message.messageBody?.key" alt="Image message" @click="handlePreview(message.messageBody?.key)"
         class="img-bubble lazy-img" />
     </template> -->
   </div>

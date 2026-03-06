@@ -1,8 +1,7 @@
 import { useSettingStore } from "@/store/modules/setting";
 import ObjectUtils from "@/utils/ObjectUtils";
-import { ShowPreviewFileWindow } from "@/windows/preview";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { appCacheDir, downloadDir, join, resolve } from "@tauri-apps/api/path";
+import { appCacheDir, join } from "@tauri-apps/api/path";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { exists } from "@tauri-apps/plugin-fs";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -236,10 +235,13 @@ export async function downloadToPath(url: string, path: string): Promise<void> {
  */
 export function formatFileSize(value: any | null): string {
   if (value == null || value === "") {
-    return "0";
+    return "0 Bytes";
   }
   const units = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
   const size = parseFloat(value as any);
+  if (!Number.isFinite(size) || size <= 0) {
+    return "0 Bytes";
+  }
   const index = Math.floor(Math.log(size) / Math.log(1024));
   const formatted = (size / Math.pow(1024, index)).toFixed(2);
   return `${formatted} ${units[index]}`;
@@ -310,24 +312,29 @@ export function useFile() {
     }
 
     try {
-      // 保存文件弹窗
-      const localPath = await saveFileDialog(name, getFileType(name), getEnumByExtension(name));
+      // const remoteUrl = await API.getFilePresignedPutUrl(path);
+      // if (ObjectUtils.isEmpty(remoteUrl)) {
+      //   ElMessage.error("文件地址无效");
+      //   return;
+      // }
+      // // 保存文件弹窗
+      // const localPath = await saveFileDialog(name, getFileType(name), getEnumByExtension(name));
 
-      // 用户取消保存
-      if (ObjectUtils.isEmpty(localPath)) {
-        ElMessage.info("已取消下载");
-        return;
-      }
+      // // 用户取消保存
+      // if (ObjectUtils.isEmpty(localPath)) {
+      //   ElMessage.info("已取消下载");
+      //   return;
+      // }
 
-      // 执行下载，并等待完成
-      await tauriDownload(path, localPath, (progress: ProgressPayload) => {
-        logger.debug(`Downloaded ${progress.progress} of ${progress.total} bytes`);
-      });
+      // // 执行下载，并等待完成
+      // await tauriDownload(remoteUrl, localPath, (progress: ProgressPayload) => {
+      //   logger.debug(`Downloaded ${progress.progress} of ${progress.total} bytes`);
+      // });
 
-      log.info(`文件 ${path} 已下载到 ${localPath}`);
-      // 提示成功
-      ElMessage.success(`文件已保存到：${localPath}`);
-      return localPath;
+      // log.info(`文件 ${remoteUrl} 已下载到 ${localPath}`);
+      // // 提示成功
+      // ElMessage.success(`文件已保存到：${localPath}`);
+      // return localPath;
     } catch (err: any) {
       log.error("下载文件失败：", err);
       ElMessage.error("下载文件失败，请重试");
@@ -339,11 +346,16 @@ export function useFile() {
    * 预览文件
    * @param path 文件路径
    */
-  function previewFile(name: string, path: string) {
+  async function previewFile(name: string, path: string) {
     if (ObjectUtils.isAllNotEmpty(name, path)) {
       try {
-        ShowPreviewFileWindow(name, path);
-        log.info(`预览文件 ${path} 已打开`);
+        // const remoteUrl = await resolveFileAccessUrl(path);
+        // if (ObjectUtils.isEmpty(remoteUrl)) {
+        //   ElMessage.info("文件地址无效");
+        //   return;
+        // }
+        // ShowPreviewFileWindow(name, remoteUrl);
+        // log.info(`预览文件 ${remoteUrl} 已打开`);
       } catch (err) {
         ElMessage.info("文件不存在");
       }
@@ -389,27 +401,32 @@ export function useFile() {
     }
 
     try {
-      let downloadPath = settingStore.file.path;
+      // const remoteUrl = await resolveFileAccessUrl(path);
+      // if (ObjectUtils.isEmpty(remoteUrl)) {
+      //   ElMessage.warning("文件地址无效");
+      //   return;
+      // }
+      // let downloadPath = settingStore.file.path;
 
-      // 没设置下载路径则请求默认下载目录
-      if (ObjectUtils.isEmpty(downloadPath)) {
-        downloadPath = await downloadDir();
-        if (!downloadPath) {
-          ElMessage.warning("未获取到下载目录");
-          return;
-        }
-        settingStore.file.path = downloadPath;
-      }
+      // // 没设置下载路径则请求默认下载目录
+      // if (ObjectUtils.isEmpty(downloadPath)) {
+      //   downloadPath = await downloadDir();
+      //   if (!downloadPath) {
+      //     ElMessage.warning("未获取到下载目录");
+      //     return;
+      //   }
+      //   settingStore.file.path = downloadPath;
+      // }
 
-      const localPath = await resolve(downloadPath, name);
+      // const localPath = await resolve(downloadPath, name);
 
-      // 开始下载
-      await tauriDownload(path, localPath, (progress: ProgressPayload) => {
-        logger.debug(`Downloaded ${progress.progress} of ${progress.total} bytes`);
-      });
+      // // 开始下载
+      // await tauriDownload(remoteUrl, localPath, (progress: ProgressPayload) => {
+      //   logger.debug(`Downloaded ${progress.progress} of ${progress.total} bytes`);
+      // });
 
-      log.info(`自动下载成功: ${localPath}`);
-      return localPath;
+      // log.info(`自动下载成功: ${localPath}`);
+      // return localPath;
     } catch (err: any) {
       log.error("自动下载失败:", err);
       ElMessage.error("自动下载失败");

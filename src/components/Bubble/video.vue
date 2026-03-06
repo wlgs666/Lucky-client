@@ -1,7 +1,8 @@
 <template>
-  <div :id="`message-${message.messageId}`" v-context-menu="menuConfig" v-memo="[message, message.isOwner, replyInfo?.messageId]"
+  <div :id="`message-${message.messageId}`" v-context-menu="menuConfig"
+    v-memo="[message, message.isOwner, replyInfo?.messageId]"
     :class="['bubble', message.type, { owner: message.isOwner }]" class="message-bubble video-bubble">
-    <div class="video-wrapper" @click="handlePreview(message.messageBody?.path)">
+    <div class="video-wrapper" @click="handlePreview(message.messageBody?.key)">
       <video ref="videoRef" :src="localPath" preload="metadata" @loadedmetadata="handleMetadata"></video>
       <div class="play-overlay">
         <i class="iconfont icon-bofang1"></i>
@@ -14,17 +15,17 @@
 </template>
 
 <script lang="ts" setup>
-import { ShowPreviewWindow } from "@/windows/preview";
-import { useMediaCacheStore } from "@/store/modules/media";
-import { storage } from "@/utils/Storage";
+import { Events, MessageContentType } from "@/constants";
 import { globalEventBus } from "@/hooks/useEventBus";
 import { useFile } from "@/hooks/useFile";
 import { useMessageContextMenu } from "@/hooks/useMessageContextMenu";
-import ReplyQuote from "./ReplyQuote.vue";
 import { useChatStore } from "@/store/modules/chat";
-import { useI18n } from "vue-i18n";
-import { Events, MessageContentType } from "@/constants";
+import { useMediaCacheStore } from "@/store/modules/media";
+import { storage } from "@/utils/Storage";
+import { ShowPreviewWindow } from "@/windows/preview";
 import { ElMessageBox } from "element-plus";
+import { useI18n } from "vue-i18n";
+import ReplyQuote from "./ReplyQuote.vue";
 
 const props = defineProps({
   message: {
@@ -62,12 +63,12 @@ const { downloadFile } = useFile();
 const videoRef = ref<HTMLVideoElement | null>(null);
 const duration = ref<number>(0);
 
-const localPath = computed(() => store.getMedia(props.message.messageId) || props.message.messageBody?.path);
+const localPath = computed(() => store.getMedia(props.message.messageId) || props.message.messageBody?.key);
 
 onMounted(() => {
   const id = store.getId();
   if (id && (id == props.message?.toId || id == props.message?.groupId)) {
-    store.loadMedia(props.message?.messageId, props.message.messageBody?.path);
+    store.loadMedia(props.message?.messageId, props.message.messageBody?.key);
   }
 });
 
@@ -84,8 +85,8 @@ const formatDuration = (seconds: number) => {
 };
 
 // 处理预览
-const handlePreview = (path: string) => {
-  ShowPreviewWindow("", path, "video");
+const handlePreview = (key: string) => {
+  ShowPreviewWindow("", key, "video");
 };
 
 // 判断当前用户是否为消息所有者
@@ -137,7 +138,7 @@ const { menuConfig, setTarget } = useMessageContextMenu<any>({
       }
       if (action === "saveAs") {
         const fileName = target.messageBody?.name || `video_${Date.now()}.mp4`;
-        await downloadFile(fileName, target.messageBody?.path);
+        await downloadFile(fileName, target.messageBody?.key);
         return;
       }
       if (action === "delete") {

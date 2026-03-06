@@ -226,8 +226,7 @@ export const useMessageStore = defineStore(StoresEnum.MESSAGE, () => {
         ? await api.uploadImage(formData)
         : await api.UploadFile(formData);
 
-    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-    const payload = buildPayload({ ...uploadRes, size: file.size, suffix: ext }, chat, contentType, { replyMessage });
+    const payload = buildPayload({ ...uploadRes }, chat, contentType, { replyMessage });
     await send(payload, chat);
     return uploadRes;
   };
@@ -396,22 +395,22 @@ export const useMessageStore = defineStore(StoresEnum.MESSAGE, () => {
       }
       return;
     }
-    if (body.name && body.path) {
-      previewFile(body.name, body.path);
+    if (body.name && body.key) {
+      await previewFile(body.name, body.key);
     }
   };
 
-  const handleFilePreview = (payload: FileActionPayload) => {
+  const handleFilePreview = async (payload: FileActionPayload) => {
     const { body } = resolveFilePayload(payload);
-    if (body.name && body.path) {
-      previewFile(body.name, body.path);
+    if (body.name && body.key) {
+      await previewFile(body.name, body.key);
     }
   };
 
   const handleFileDownload = async (payload: FileActionPayload) => {
     const { message, body } = resolveFilePayload(payload);
-    if (!message || !body.name || !body.path) return;
-    const localPath = await downloadFile(body.name, body.path);
+    if (!message || !body.name || !body.key) return;
+    const localPath = await downloadFile(body.name, body.key);
     if (localPath) {
       updateFileMessage(message, { ...body, local: localPath });
     }
@@ -426,10 +425,10 @@ export const useMessageStore = defineStore(StoresEnum.MESSAGE, () => {
 
   const handleFileAutoDownload = async (payload: FileActionPayload) => {
     const { message, body } = resolveFilePayload(payload);
-    if (!message || body.local || !body.name || !body.path) return;
+    if (!message || body.local || !body.name || !body.key) return;
     const size = Number(body.size);
     if (!Number.isFinite(size)) return;
-    const localPath = await autoDownloadFile(body.name, body.path, size);
+    const localPath = await autoDownloadFile(body.name, body.key, size);
     if (localPath) {
       updateFileMessage(message, { ...body, local: localPath });
     }

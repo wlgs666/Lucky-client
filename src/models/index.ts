@@ -77,14 +77,14 @@ class TextMessageBody extends MessageBody {
 
 /** 图片 */
 class ImageMessageBody extends MessageBody {
-  path: string;
+  key: string;
   name?: string;
   size?: number;
   replyMessage?: ReplyMessageInfo;
 
-  constructor(init: { path: string; name?: string; size?: number; replyMessage?: ReplyMessageInfo; }) {
+  constructor(init: { key: string; name?: string; size?: number; replyMessage?: ReplyMessageInfo; }) {
     super();
-    this.path = init.path;
+    this.key = init.key;
     this.name = init.name;
     this.size = init.size;
     this.replyMessage = init.replyMessage;
@@ -107,15 +107,15 @@ class StickerMessageBody extends MessageBody {
 
 /** 视频 */
 class VideoMessageBody extends MessageBody {
-  path: string;
+  key: string;
   name?: string;
   duration?: number;
   size?: number;
   replyMessage?: ReplyMessageInfo;
 
-  constructor(init: { path: string; name?: string; duration?: number; size?: number; replyMessage?: ReplyMessageInfo }) {
+  constructor(init: { key: string; name?: string; duration?: number; size?: number; replyMessage?: ReplyMessageInfo }) {
     super();
-    this.path = init.path;
+    this.key = init.key;
     this.name = init.name;
     this.duration = init.duration;
     this.size = init.size;
@@ -124,14 +124,14 @@ class VideoMessageBody extends MessageBody {
 
 /** 音频 */
 class AudioMessageBody extends MessageBody {
-  path: string;
+  key: string;
   duration?: number;
   size?: number;
   replyMessage?: ReplyMessageInfo;
 
-  constructor(init: { path: string; duration?: number; size?: number; replyMessage?: ReplyMessageInfo; }) {
+  constructor(init: { key: string; duration?: number; size?: number; replyMessage?: ReplyMessageInfo; }) {
     super();
-    this.path = init.path;
+    this.key = init.key;
     this.duration = init.duration;
     this.size = init.size;
   }
@@ -139,15 +139,15 @@ class AudioMessageBody extends MessageBody {
 
 /** 文件 */
 class FileMessageBody extends MessageBody {
-  path: string;
+  key: string;
   name?: string;
   suffix?: string;
   size?: number;
   replyMessage?: ReplyMessageInfo;
 
-  constructor(init: { path: string; name?: string; suffix?: string; size?: number; replyMessage?: ReplyMessageInfo; }) {
+  constructor(init: { key: string; name?: string; suffix?: string; size?: number; replyMessage?: ReplyMessageInfo; }) {
     super();
-    this.path = init.path;
+    this.key = init.key;
     this.name = init.name;
     this.suffix = init.suffix;
     this.size = init.size;

@@ -28,7 +28,7 @@ import { ReplyMessageInfo } from "@/models";
 import { useChatStore } from "@/store/modules/chat";
 import { storage } from "@/utils/Storage";
 import { ElMessageBox } from "element-plus";
-import { computed, shallowReactive, watchEffect } from "vue";
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import ReplyQuote from "./ReplyQuote.vue";
 
@@ -38,7 +38,7 @@ const chatStore = useChatStore();
 const props = defineProps<{
   message: {
     messageId: string | number;
-    messageBody: any; // 对象或 JSON 字符串，包含 replyMessage
+    messageBody: any;
     type: string;
     isOwner: boolean;
     fromId?: string;
@@ -46,11 +46,22 @@ const props = defineProps<{
   };
 }>();
 
-// 从 messageBody 获取引用消息
-const replyInfo = computed(() => {
-  const body = parsedBody;
-  return body?.replyMessage as ReplyMessageInfo | undefined;
-});
+const parseBody = (raw: unknown): Record<string, any> => {
+  if (!raw) return {};
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw.trim());
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return typeof raw === "object" ? raw as Record<string, any> : {};
+};
+
+const parsedBody = computed(() => parseBody(props.message.messageBody));
+
+const replyInfo = computed(() => parsedBody.value.replyMessage as ReplyMessageInfo | undefined);
 
 // 获取被引用消息的发送者名称
 const replySenderName = computed(() => {
@@ -67,31 +78,14 @@ const replySenderName = computed(() => {
   return member?.name || replyFromId;
 });
 
-const parsedBody = shallowReactive({} as any);
-
-// 解析 messageBody（如果为字符串，JSON.parse；否则直接用）
-watchEffect(() => {
-  const body = props.message.messageBody;
-  if (typeof body === "string") {
-    try {
-      Object.assign(parsedBody, JSON.parse(body));
-    } catch (e) {
-      console.warn("Failed to parse messageBody:", e);
-      Object.assign(parsedBody, { name: "", path: "", size: 0, local: null });
-    }
-  } else {
-    Object.assign(parsedBody, body || {});
-  }
-});
-
 const buildFilePayload = (message: any) => ({
   message,
   body: {
-    name: parsedBody?.name,
-    path: parsedBody?.path,
-    size: parsedBody?.size,
-    local: parsedBody?.local,
-    suffix: parsedBody?.suffix
+    name: parsedBody.value.name,
+    key: parsedBody.value.key,
+    size: parsedBody.value.size,
+    local: parsedBody.value.local,
+    suffix: parsedBody.value.suffix
   }
 });
 
@@ -105,7 +99,7 @@ const handleAutoDownloadFile = (message: any) => emitFileEvent(Events.MESSAGE_FI
 
 /** 处理回复消息 */
 function handleReply(msg: typeof props.message): void {
-  const fileName = parsedBody.name || t("components.bubble.reply.file");
+  const fileName = parsedBody.value.name || t("components.bubble.reply.file");
   globalEventBus.emit(Events.MESSAGE_REPLY, {
     messageId: msg.messageId,
     fromId: msg.fromId,
@@ -117,13 +111,13 @@ function handleReply(msg: typeof props.message): void {
 
 /** 处理转发消息 */
 function handleForward(msg: typeof props.message): void {
-  const { local, name, path } = parsedBody
+  const { local, name, key } = parsedBody.value;
   globalEventBus.emit(Events.MESSAGE_FORWARD, {
-    type: 'file',
-    content: path || local,
+    type: "file",
+    content: key || local,
     id: msg.messageId,
-    name: name,
-  })
+    name: name
+  });
 }
 
 // ===================== 右键菜单 =====================
@@ -133,8 +127,8 @@ const { menuConfig, setTarget } = useMessageContextMenu<typeof props.message>({
     { label: t("common.actions.forward"), value: "forward" },
     { label: t("common.actions.delete"), value: "delete" },
     {
-      label: parsedBody.local ? t("common.actions.showInFolder") : t("common.actions.preview"),
-      value: parsedBody.local ? "openPath" : "preview"
+      label: parsedBody.value.local ? t("common.actions.showInFolder") : t("common.actions.preview"),
+      value: parsedBody.value.local ? "openPath" : "preview"
     }
   ],
   onAction: async (action, item) => {
@@ -164,6 +158,7 @@ const { menuConfig, setTarget } = useMessageContextMenu<typeof props.message>({
       }
       if (action === "openPath") {
         emitFileEvent(Events.MESSAGE_FILE_OPEN_PATH, target);
+        return;
       }
       if (action === "preview") {
         emitFileEvent(Events.MESSAGE_FILE_PREVIEW, target);

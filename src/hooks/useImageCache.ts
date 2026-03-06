@@ -5,13 +5,13 @@
  * - 倒排索引：hash -> localPath
  */
 
-import { ref, computed, type Ref, type ComputedRef } from "vue";
-import { appCacheDir, appDataDir, join } from "@tauri-apps/api/path";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { exists, mkdir, writeFile, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { storage } from "@/utils/Storage";
-import SparkMD5 from "spark-md5";
 import { logger } from "@/hooks/useLogger";
+import { storage } from "@/utils/Storage";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { appCacheDir, appDataDir, join } from "@tauri-apps/api/path";
+import { exists, mkdir, readTextFile, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import SparkMD5 from "spark-md5";
+import { computed, ref, type ComputedRef, type Ref } from "vue";
 
 // ===================== 类型 =====================
 
@@ -296,7 +296,7 @@ export function useImageCache(url: Ref<string> | ComputedRef<string> | string) {
 
 export function useAvatar(avatar: Ref<string | undefined> | (() => string | undefined)) {
   const getUrl = typeof avatar === "function" ? avatar : () => avatar.value;
-  
+
   const avatarSrc = computed(() => {
     const url = getUrl()?.trim();
     if (!url) return "";

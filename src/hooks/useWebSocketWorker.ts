@@ -1,11 +1,12 @@
+import { ProtocolMode } from "@/types/env";
 import { onBeforeUnmount, shallowReactive } from "vue";
 import { useLogger } from "./useLogger";
-import { ProtocolMode } from "@/types/env";
 
 // --- Types ---
 type WorkerCmd =
   | { type: "connect"; url: string; payload?: any; heartbeat?: any; interval?: number; protocol?: ProtocolMode }
   | { type: "send"; payload: any }
+  | { type: "updateToken"; token: string }
   | { type: "disconnect" };
 
 type WorkerEvent =
@@ -54,7 +55,7 @@ class WebSocketClient {
     this.lastConnectArgs = { url, options, workerPath };
     this.cancelAutoRelease();
     this.ensureWorker(workerPath);
-    
+
     this.updateStatus("connecting");
     this.postToWorker({
       type: "connect",
@@ -68,6 +69,28 @@ class WebSocketClient {
       this.postToWorker({ type: "send", payload });
     } else {
       this.bufferMessage(payload);
+    }
+  }
+
+  public updateToken(token: string) {
+    if (this.lastConnectArgs) {
+      const nextOptions = this.lastConnectArgs.options
+        ? {
+            ...this.lastConnectArgs.options,
+            payload: this.mergeToken(this.lastConnectArgs.options.payload, token),
+            heartbeat: this.mergeToken(this.lastConnectArgs.options.heartbeat, token)
+          }
+        : undefined;
+
+      this.lastConnectArgs = {
+        ...this.lastConnectArgs,
+        url: this.updateUrlToken(this.lastConnectArgs.url, token),
+        options: nextOptions
+      };
+    }
+
+    if (this.worker) {
+      this.postToWorker({ type: "updateToken", token });
     }
   }
 
@@ -142,7 +165,7 @@ class WebSocketClient {
     this.state.lastMessage = data;
     this.state.messages.push(data);
     if (this.state.messages.length > 200) this.state.messages.shift();
-    
+
     this.subscribers.forEach(handler => {
       try { handler(data); } catch (e) { this.log.error("Subscriber error", e); }
     });
@@ -152,7 +175,7 @@ class WebSocketClient {
     this.log.error("Worker process error", err);
     this.state.status = "error";
     this.state.error = err;
-    
+
     // Attempt restart if crashed
     this.terminateWorker();
     if (this.lastConnectArgs) {
@@ -203,6 +226,23 @@ class WebSocketClient {
     }
   }
 
+  private mergeToken(target: any, token: string) {
+    if (target && typeof target === "object" && !ArrayBuffer.isView(target) && !(target instanceof ArrayBuffer)) {
+      return { ...target, token };
+    }
+    return target;
+  }
+
+  private updateUrlToken(raw: string, token: string) {
+    try {
+      const url = new URL(raw);
+      url.searchParams.set("token", token);
+      return url.toString();
+    } catch {
+      return raw;
+    }
+  }
+
   public get _debug() {
     return { worker: this.worker, subscribers: this.subscribers.size };
   }
@@ -220,6 +260,7 @@ export function useWebSocketWorker() {
     connect: client.connect.bind(client),
     send: client.send.bind(client),
     disconnect: client.disconnect.bind(client),
+    updateToken: client.updateToken.bind(client),
     onMessage: client.subscribe.bind(client),
     destroy: client.destroy.bind(client),
     _internal: client._debug

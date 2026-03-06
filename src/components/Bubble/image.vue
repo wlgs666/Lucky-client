@@ -1,20 +1,23 @@
 <template>
   <div :id="`message-${message.messageId}`" v-context-menu="menuConfig"
-    v-memo="[message.messageId, message.isOwner, replyInfo?.messageId]"
-    :class="['image-bubble', { 'image-bubble--owner': message.isOwner }]">
-    <div class="image-bubble__wrapper" @click="handlePreview">
-      <img :src="src" class="image-bubble__img" alt="Image" @load="cacheOnLoad" />
+    v-memo="[message.messageId, message.isOwner, imageUrl]" :class="['image-bubble', { owner: message.isOwner }]"
+    class="message-bubble image-bubble">
+    <div class="image-wrapper" @click="handlePreview">
+      <img v-if="imageUrl" :src="imageUrl" alt="Image" class="img-bubble lazy-img" loading="lazy"
+        @error="handleImageError" />
+      <div v-else class="loading-placeholder">
+        <div class="dot-flashing"></div>
+      </div>
     </div>
-    <!-- 引用消息显示（在图片下方） -->
     <ReplyQuote v-if="replyInfo" :replyMessage="replyInfo" :senderName="replySenderName" />
   </div>
 </template>
 
 <script lang="ts" setup>
+import API from "@/api";
 import { CacheEnum, Events, MessageContentType } from "@/constants";
 import { globalEventBus } from "@/hooks/useEventBus";
 import { useFile } from "@/hooks/useFile";
-import { useImageCache } from "@/hooks/useImageCache";
 import { useLogger } from "@/hooks/useLogger";
 import { useMessageContextMenu } from "@/hooks/useMessageContextMenu";
 import { ReplyMessageInfo } from "@/models";
@@ -25,31 +28,26 @@ import { storage } from "@/utils/Storage";
 import { ShowPreviewWindow } from "@/windows/preview";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { ElMessageBox } from "element-plus";
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import ReplyQuote from "./ReplyQuote.vue";
 
-// ===================== Props =====================
+type MessageItem = {
+  messageId: string;
+  messageBody?: { key?: string; name?: string; replyMessage?: ReplyMessageInfo };
+  messageTime?: number;
+  fromId?: string;
+  isOwner?: boolean;
+  name?: string;
+};
 
 const props = defineProps<{
-  message: {
-    messageId: string;
-    messageBody?: { path?: string; name?: string; replyMessage?: ReplyMessageInfo };
-    messageTime?: number;
-    fromId?: string;
-    isOwner?: boolean;
-    name?: string;
-  };
+  message: MessageItem;
 }>();
 
 const { t } = useI18n();
 const chatStore = useChatStore();
-
-// ===================== 引用消息 =====================
-
-// 从 messageBody 获取引用消息
 const replyInfo = computed(() => props.message.messageBody?.replyMessage);
-
 const replySenderName = computed(() => {
   const replyFromId = replyInfo.value?.fromId;
   if (!replyFromId) return "";
@@ -64,32 +62,53 @@ const replySenderName = computed(() => {
   return member?.name || replyFromId;
 });
 
-// ===================== 图片缓存 =====================
-
-const imageUrl = computed(() => props.message.messageBody?.path || "");
-const { src, cacheOnLoad } = useImageCache(imageUrl);
-
-// ===================== Hooks =====================
-
+const imageUrl = ref("");
+const previewUrl = ref("");
 const { downloadFile } = useFile();
 const logger = useLogger();
-
-// ===================== 事件 =====================
+const recallWindowMs = Number(import.meta.env.VITE_MESSAGE_RECALL_TIME) || 120000;
+let lastRequestedKey = "";
 
 const handlePreview = () => {
-  const path = props.message.messageBody?.path;
-  if (path) ShowPreviewWindow("", path, "image");
+  const url = previewUrl.value || imageUrl.value;
+  if (url) ShowPreviewWindow("", url, "image");
 };
 
-// ===================== 右键菜单 =====================
+const handleImageError = () => {
+  if (previewUrl.value && imageUrl.value !== previewUrl.value) {
+    imageUrl.value = previewUrl.value;
+  }
+};
 
-const isOwner = (item: typeof props.message) =>
+const isOwner = (item: MessageItem) =>
   typeof item.isOwner === "boolean" ? item.isOwner : String(item.fromId) === String(storage.get("userId"));
 
-const canRecall = (item: typeof props.message) => {
-  if (!item.messageTime) return false;
-  const recallTime = import.meta.env.VITE_MESSAGE_RECALL_TIME || 120000;
-  return Date.now() - item.messageTime <= recallTime;
+const canRecall = (item: MessageItem) => !!item.messageTime && Date.now() - item.messageTime <= recallWindowMs;
+
+const handleDelete = async (target: MessageItem) => {
+  await ElMessageBox.confirm(
+    t("components.dialog.deleteMessage.confirm"),
+    t("components.dialog.title.warning"),
+    {
+      distinguishCancelAndClose: true,
+      confirmButtonText: t("components.dialog.buttons.confirm"),
+      cancelButtonText: t("components.dialog.buttons.cancel"),
+      type: "warning"
+    }
+  );
+  globalEventBus.emit(Events.MESSAGE_DELETE, target);
+};
+
+const handleSaveAs = async (target: MessageItem) => {
+  await downloadFile(target.messageBody?.name || `image_${Date.now()}.png`, target.messageBody?.key || "");
+};
+
+const handleCopy = async (target: MessageItem) => {
+  await ClipboardManager.clear();
+  const key = await getPath(target.messageBody?.key || "", CacheEnum.IMAGE_CACHE);
+  const imgBuf = await readFile(key);
+  await ClipboardManager.writeImage(imgBuf);
+  logger.prettySuccess("Image copied", target.messageBody?.key);
 };
 
 const { menuConfig, setTarget } = useMessageContextMenu<typeof props.message>({
@@ -108,49 +127,31 @@ const { menuConfig, setTarget } = useMessageContextMenu<typeof props.message>({
   },
   onAction: async (action, item) => {
     const target = item ?? props.message;
-    const body = target.messageBody;
     try {
       if (action === "reply") {
         handleReply(target);
         return;
       }
       if (action === "copy") {
-        await ClipboardManager.clear();
-        const path = await getPath(body?.path || "", CacheEnum.IMAGE_CACHE);
-        const imgBuf = await readFile(path);
-        await ClipboardManager.writeImage(imgBuf);
-        logger.prettySuccess("Image copied", body?.path);
+        await handleCopy(target);
         return;
       }
       if (action === "saveAs") {
-        await downloadFile(body?.name || `image_${Date.now()}.png`, body?.path || "");
+        await handleSaveAs(target);
         return;
       }
       if (action === "delete") {
-        await ElMessageBox.confirm(
-          t("components.dialog.deleteMessage.confirm"),
-          t("components.dialog.title.warning"),
-          {
-            distinguishCancelAndClose: true,
-            confirmButtonText: t("components.dialog.buttons.confirm"),
-            cancelButtonText: t("components.dialog.buttons.cancel"),
-            type: "warning"
-          }
-        );
-        globalEventBus.emit(Events.MESSAGE_DELETE, target);
+        await handleDelete(target);
         return;
       }
       if (action === "recall") {
         globalEventBus.emit(Events.MESSAGE_RECALL, target);
       }
-    } catch {
-      // 用户取消
-    }
+    } catch { }
   },
   beforeShow: () => setTarget(props.message)
 });
 
-/** 处理回复消息 */
 function handleReply(msg: typeof props.message): void {
   globalEventBus.emit(Events.MESSAGE_REPLY, {
     messageId: msg.messageId,
@@ -161,31 +162,65 @@ function handleReply(msg: typeof props.message): void {
   });
 }
 
+const fetchImageInfo = async () => {
+  const { key } = props.message.messageBody || {};
+  lastRequestedKey = key || "";
+  if (!key) {
+    imageUrl.value = "";
+    previewUrl.value = "";
+    return;
+  }
+  try {
+    const res = await API.getMediaPresignedPutUrl({ identifier: key }) as { path?: string; thumbPath?: string };
+    if (lastRequestedKey !== key) return;
+    logger.prettyInfo("聊天图片加载", res)
+    previewUrl.value = res.path || "";
+    imageUrl.value = res.thumbPath || res.path || "";
+  } catch (error) {
+    if (lastRequestedKey !== key) return;
+    imageUrl.value = "";
+    previewUrl.value = "";
+    logger.warn("Failed to fetch image url", key, error);
+  }
+};
+
+watch(
+  () => props.message.messageBody?.key,
+  () => {
+    fetchImageInfo();
+  },
+  { immediate: true }
+);
+
 </script>
 
 <style lang="scss" scoped>
-.image-bubble {
+.message-bubble.image-bubble {
+  background-color: transparent !important;
+  padding: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   margin: 4px 0;
   max-width: 300px;
 
-  &--owner {
-    align-items: flex-end;
+  :deep(.reply-quote) {
+    max-width: 280px;
   }
 
-  &__wrapper {
-    display: inline-flex;
+  .image-wrapper {
+    position: relative;
+    display: flex;
     border-radius: 8px;
     overflow: hidden;
     cursor: pointer;
-
-    &:hover .image-bubble__img {
-      transform: scale(1.02);
-    }
+    min-height: 40px;
+    min-width: 40px;
+    align-items: center;
+    justify-content: center;
   }
 
-  &__img {
+  .img-bubble {
     display: block;
     max-width: 280px;
     max-height: 300px;
@@ -195,9 +230,72 @@ function handleReply(msg: typeof props.message): void {
     transition: transform 0.2s ease;
   }
 
-  // 包含引用时的样式
-  :deep(.reply-quote) {
-    max-width: 280px;
+  .image-wrapper:hover .img-bubble {
+    transform: scale(1.02);
+  }
+
+  .loading-placeholder {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 50px;
+    height: 50px;
+  }
+
+  &.owner .image-wrapper {
+    justify-content: flex-end;
+  }
+}
+
+.dot-flashing {
+  position: relative;
+  width: 6px;
+  height: 6px;
+  border-radius: 5px;
+  background-color: #9880ff;
+  color: #9880ff;
+  animation: dot-flashing 1s infinite linear alternate;
+  animation-delay: 0.5s;
+}
+
+.dot-flashing::before,
+.dot-flashing::after {
+  content: "";
+  display: inline-block;
+  position: absolute;
+  top: 0;
+}
+
+.dot-flashing::before {
+  left: -10px;
+  width: 6px;
+  height: 6px;
+  border-radius: 5px;
+  background-color: #9880ff;
+  color: #9880ff;
+  animation: dot-flashing 1s infinite alternate;
+  animation-delay: 0s;
+}
+
+.dot-flashing::after {
+  left: 10px;
+  width: 6px;
+  height: 6px;
+  border-radius: 5px;
+  background-color: #9880ff;
+  color: #9880ff;
+  animation: dot-flashing 1s infinite alternate;
+  animation-delay: 1s;
+}
+
+@keyframes dot-flashing {
+  0% {
+    background-color: #9880ff;
+  }
+
+  50%,
+  100% {
+    background-color: rgba(152, 128, 255, 0.2);
   }
 }
 </style>

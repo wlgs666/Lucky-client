@@ -64,12 +64,13 @@
     <!-- 底部 Tab 导航 -->
     <nav class="sticker-navbar">
       <div class="tabs-wrapper">
-        <div class="nav-tab-item" :class="{ active: activeTab === 'default' }" @click="switchTab('default')">
+        <div class="nav-tab-item" :class="{ active: activeTab === 'default' }" title="emoji"
+          @click="switchTab('default')">
           <span class="default-icon">{{ defaultEmojiIcon }}</span>
         </div>
 
         <div v-for="pack in emojiPacks" :key="pack.packId" class="nav-tab-item"
-          :class="{ active: activeTab === pack.packId }" @click="switchTab(pack.packId)">
+          :class="{ active: activeTab === pack.packId }" :title="pack.name" @click="switchTab(pack.packId)">
           <el-image :src="pack.url || pack.cover" fit="cover" class="pack-cover" />
         </div>
       </div>

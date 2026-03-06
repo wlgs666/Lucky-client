@@ -1,6 +1,6 @@
-import { clear, readImage, readText, writeHtml, writeImage, writeText } from "@tauri-apps/plugin-clipboard-manager";
-import type { Image } from "@tauri-apps/api/image";
 import { invoke } from "@tauri-apps/api/core";
+import type { Image } from "@tauri-apps/api/image";
+import { clear, readImage, readText, writeHtml, writeImage, writeText } from "@tauri-apps/plugin-clipboard-manager";
 
 /**
  * ClipboardManager 工具类
@@ -80,6 +80,46 @@ export default class ClipboardManager {
       const errorMsg = error instanceof Error ? error.message : "从剪贴板读取图片失败";
       console.error("ClipboardManager.readImage failed:", error);
       throw new Error(errorMsg);
+    }
+  }
+
+  /**
+   * 从剪贴板读取图像并转换为 File 对象
+   * @param fileName 文件名，默认为 pasted_image.png
+   * @returns Promise<File | null>
+   */
+  static async readImageAsFile(fileName: string = "pasted_image.png"): Promise<File | null> {
+    try {
+      const img = await this.readImage();
+      const bytes = await img.rgba();
+      const size = await img.size();
+
+      const canvas = document.createElement("canvas");
+      canvas.width = size.width;
+      canvas.height = size.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+
+      const imageData = new ImageData(
+        new Uint8ClampedArray(bytes),
+        size.width,
+        size.height
+      );
+      ctx.putImageData(imageData, 0, 0);
+
+      return new Promise((resolve) => {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const file = new File([blob], fileName, { type: "image/png" });
+            resolve(file);
+          } else {
+            resolve(null);
+          }
+        }, "image/png");
+      });
+    } catch (error) {
+      // 忽略读取错误（可能是剪贴板中没有图片）
+      return null;
     }
   }
 

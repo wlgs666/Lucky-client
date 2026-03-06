@@ -137,6 +137,7 @@ import { useChatStore } from "@/store/modules/chat";
 import { useGroupStore } from "@/store/modules/group";
 import { useMessageStore } from "@/store/modules/message";
 import { useSettingStore } from "@/store/modules/setting";
+import ClipboardManager from "@/utils/Clipboard";
 import onPaste from "@/utils/Paste";
 import { storage } from "@/utils/Storage";
 import { ElMessage } from "element-plus";
@@ -222,12 +223,11 @@ const handleChooseSticker = async (obj: string | StickerModel) => {
   if (obj instanceof Object) {
 
     if (obj.stickerId) {
-
+      stickerVisible.value = false;
       const part: IMessagePart = {
         type: "sticker",
         content: obj.stickerId,
       };
-
       await messageStore.handleSendMessage([part]);
     }
   }
@@ -335,6 +335,35 @@ const handlePaste = async (e: ClipboardEvent) => {
     return;
   }
 
+  // 1. 优先尝试从 Tauri 剪贴板读取图片（解决部分应用复制图片无法在 Web 获取的问题）
+  try {
+    // 检查剪贴板是否有图片
+    const file = await ClipboardManager.readImageAsFile();
+    if (file) {
+      if (file.size > MAX_PASTE_IMAGE_SIZE) {
+        ElMessage.warning("文件大小超过 10MB 限制");
+        return;
+      }
+      await addFilesToQueue([file]);
+      return;
+    }
+  } catch (error) {
+    // 忽略错误，继续尝试
+  }
+
+  // 2. 尝试从 Tauri 剪贴板读取文本
+  try {
+    const text = await ClipboardManager.readText();
+    if (text) {
+      document.execCommand("insertText", false, text);
+      editor.moveCursorToEnd();
+      return;
+    }
+  } catch (error) {
+    // 忽略错误
+  }
+
+  // 3. 回退到 Web API 处理（主要处理文件复制等场景）
   try {
     const result: any = await onPaste(e as any);
     if (!result) return;

@@ -30,10 +30,10 @@
             @contextmenu="handlePartContextMenu($event, { type: 'image', part, idx })">
             <!-- 使用 el-image 可自动支持预览功能 -->
             <!-- <el-image
-              :src="part.content?.path || part.content?.url || part.content"
+              :src="part.content?.key || part.content?.url || part.content"
               class="mixed-bubble__image"
               fit="cover"
-              preview-src-list="[part.content?.path || part.content?.url || part.content]"
+              preview-src-list="[part.content?.key || part.content?.url || part.content]"
               @click.native.stop="openImage(part)"
             /> -->
           </div>
@@ -42,7 +42,7 @@
           <div v-else-if="part.type === 'video'" :key="`p-video-${idx}`"
             class="mixed-bubble__part mixed-bubble__part--media"
             @contextmenu="handlePartContextMenu($event, { type: 'video', part, idx })">
-            <video :src="part.content?.path || part.content?.url || part.content" class="mixed-bubble__video" controls
+            <video :src="part.content?.key || part.content?.url || part.content" class="mixed-bubble__video" controls
               preload="metadata" @click.stop />
           </div>
 
@@ -52,7 +52,7 @@
             @contextmenu="handlePartContextMenu($event, { type: 'file', part, idx })">
             <div class="mixed-bubble__file-left">
               <svg aria-hidden="true" class="mixed-bubble__file-icon" viewBox="0 0 24 24">
-                <path d="M6 2h7l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" />
+                <key d="M6 2h7l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" />
               </svg>
             </div>
             <div class="mixed-bubble__file-body">

@@ -2,15 +2,16 @@
  * WebSocket Worker
  * Handles connection, heartbeat, reconnection, and protocol (Proto/JSON) codec.
  */
-import { IMConnectMessage } from "../proto/im_connect";
-import { Any } from "../proto/google/protobuf/any";
 import { ListValue, Struct, Value } from "@/proto/google/protobuf/struct";
 import { ProtocolMode } from "@/types/env";
+import { Any } from "../proto/google/protobuf/any";
+import { IMConnectMessage } from "../proto/im_connect";
 
 // --- Types ---
 type WorkerCommand =
   | { type: "connect"; url: string; payload?: any; heartbeat?: any; interval?: number; protocol?: ProtocolMode }
   | { type: "send"; payload: any; options?: { protocol?: ProtocolMode; sendAsRawBytes?: boolean } }
+  | { type: "updateToken"; token: string }
   | { type: "disconnect" };
 
 type WorkerEvent =
@@ -41,7 +42,7 @@ class WebSocketWorker {
     heartbeat: null as number | null,
     reconnect: null as number | null,
   };
-  
+
   private state = {
     reconnectAttempts: 0,
     isExplicitlyDisconnected: false,
@@ -69,6 +70,9 @@ class WebSocketWorker {
           break;
         case "send":
           this.send(cmd.payload, cmd.options);
+          break;
+        case "updateToken":
+          this.updateToken(cmd.token);
           break;
         case "disconnect":
           this.disconnect(true);
@@ -102,7 +106,7 @@ class WebSocketWorker {
       this.log("info", `Connecting to ${this.config.url} [${this.config.protocol}]`);
       this.ws = new WebSocket(this.config.url, [this.config.protocol]);
       this.ws.binaryType = "arraybuffer";
-      
+
       this.ws.onopen = this.handleOpen.bind(this);
       this.ws.onmessage = this.handleMessage.bind(this);
       this.ws.onerror = this.handleError.bind(this);
@@ -115,10 +119,10 @@ class WebSocketWorker {
 
   private handleOpen() {
     if (!this.ws || !this.config) return;
-    
+
     this.state.reconnectAttempts = 0;
     this.state.activeProtocol = this.normalizeProtocol(this.ws.protocol, this.config.protocol);
-    
+
     this.log("info", `Connected. Protocol: ${this.state.activeProtocol}`);
 
     if (this.config.payload != null) {
@@ -160,13 +164,40 @@ class WebSocketWorker {
     this.cleanup();
   }
 
+  private updateToken(token: string) {
+    if (!this.config) return;
+    this.config = {
+      ...this.config,
+      url: this.updateUrlToken(this.config.url, token),
+      payload: this.mergeToken(this.config.payload, token),
+      heartbeat: this.mergeToken(this.config.heartbeat, token)
+    };
+  }
+
+  private mergeToken(target: any, token: string) {
+    if (target && typeof target === "object" && !ArrayBuffer.isView(target) && !(target instanceof ArrayBuffer)) {
+      return { ...target, token };
+    }
+    return target;
+  }
+
+  private updateUrlToken(raw: string, token: string) {
+    try {
+      const url = new URL(raw);
+      url.searchParams.set("token", token);
+      return url.toString();
+    } catch {
+      return raw;
+    }
+  }
+
   private cleanup() {
     this.stopHeartbeat();
     this.stopReconnect();
-    
+
     if (this.ws) {
       this.ws.onopen = this.ws.onmessage = this.ws.onerror = this.ws.onclose = null;
-      try { this.ws.close(); } catch {}
+      try { this.ws.close(); } catch { }
       this.ws = null;
     }
   }
@@ -214,12 +245,12 @@ class WebSocketWorker {
     }
 
     const delay = Math.min(
-      CONSTANTS.RECONNECT.BASE_DELAY * Math.pow(2, this.state.reconnectAttempts), 
+      CONSTANTS.RECONNECT.BASE_DELAY * Math.pow(2, this.state.reconnectAttempts),
       CONSTANTS.RECONNECT.MAX_DELAY
     );
-    
+
     this.log("info", `Reconnecting in ${delay}ms (Attempt ${this.state.reconnectAttempts + 1})`);
-    
+
     this.timers.reconnect = self.setTimeout(() => {
       this.state.reconnectAttempts++;
       this.connect();
@@ -299,7 +330,7 @@ const Codec = {
     if (typeof data === "string") {
       try { return JSON.parse(data); } catch { return data; }
     }
-    
+
     if (data instanceof ArrayBuffer) data = new Uint8Array(data);
     if (data instanceof Uint8Array) {
       try {
@@ -327,13 +358,13 @@ const Codec = {
       if (typeUrl.includes("Struct")) return Codec.unwrap(Struct.decode(raw), Codec.structToJs);
       if (typeUrl.includes("Value")) return Codec.unwrap(Value.decode(raw), Codec.valueToJs);
       if (typeUrl.includes("ListValue")) return Codec.unwrap(ListValue.decode(raw), Codec.listValueToJs);
-    } catch {}
+    } catch { }
 
     try {
       const txt = new TextDecoder().decode(raw);
       if (Codec.looksLikeJson(txt)) return JSON.parse(txt);
-    } catch {}
-    
+    } catch { }
+
     return raw;
   },
 
@@ -347,9 +378,9 @@ const Codec = {
   },
 
   isAnyLike(x: any): boolean {
-    return x && typeof x === "object" && 
-           typeof (x.typeUrl ?? x.type_url) === "string" && 
-           (x.value instanceof Uint8Array || x.value instanceof ArrayBuffer);
+    return x && typeof x === "object" &&
+      typeof (x.typeUrl ?? x.type_url) === "string" &&
+      (x.value instanceof Uint8Array || x.value instanceof ArrayBuffer);
   },
 
   looksLikeJson(s: string): boolean {
@@ -383,4 +414,5 @@ const Codec = {
 };
 
 new WebSocketWorker(self as any);
-export {}; 
+export { };
+

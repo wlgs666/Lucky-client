@@ -1,7 +1,7 @@
 import { StoresEnum } from "@/constants";
 import { tauriStorage } from "@/store/plugins/TauriStorage";
 import { defineStore } from "pinia";
-import { ref, computed } from "vue";
+import { computed, ref } from "vue";
 
 /**
  * 单个快捷键配置接口

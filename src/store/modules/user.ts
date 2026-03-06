@@ -48,7 +48,7 @@ interface LoginResponse {
 export const useUserStore = defineStore(StoresEnum.USER, () => {
   // 1. 核心依赖
   const { md5 } = useCrypto();
-  const { disconnect: wsDisconnect, destroy: wsDestroy } = useWebSocketWorker();
+  const { disconnect: wsDisconnect, destroy: wsDestroy, updateToken: wsUpdateToken } = useWebSocketWorker();
 
   // 2. 响应式状态 (State)
   // Token 仅在内存保留 AccessToken，刷新需走 TokenManager
@@ -74,7 +74,6 @@ export const useUserStore = defineStore(StoresEnum.USER, () => {
   const initSession = async () => {
     const accessToken = await tokenManager.getAccess();
     if (accessToken) {
-      token.value = accessToken;
       status.value = LoginStatus.LOGGED_IN;
       // 可选：静默刷新用户信息
       handleGetUserInfo(true);
@@ -111,6 +110,8 @@ export const useUserStore = defineStore(StoresEnum.USER, () => {
           storage.set("userId", res.userId);
           storage.set("token", res.accessToken);
           userInfo.value.userId = res.userId;
+          // 3. 更新 WebSocket Token
+          wsUpdateToken(res.accessToken);
         })()
       ]);
 
@@ -164,10 +165,25 @@ export const useUserStore = defineStore(StoresEnum.USER, () => {
   const refreshToken = async () => {
     tokenManager.getRefresh().then(async (refreshToken) => {
       if (refreshToken) {
-        api.RefreshToken(refreshToken).then((res: any) => {
+        api.RefreshToken(refreshToken).then(async (res: any) => {
           if (res) {
-            token.value = res.accessToken;
-            storage.set("token", res.accessToken);
+            await Promise.all([
+              await tokenManager.set({
+                accessToken: res.accessToken,
+                refreshToken: res.refreshToken,
+                accessExpiresAt: res.accessExpiresAt || Date.now() + 7200000,
+                refreshExpiresAt: res.refreshExpiresAt
+              }),
+              (async () => {
+                token.value = res.accessToken;
+                storage.set("userId", res.userId);
+                storage.set("token", res.accessToken);
+                userInfo.value.userId = res.userId;
+              })()
+            ]);
+            if (res.accessToken) {
+              wsUpdateToken(res.accessToken);
+            }
           }
         });
       }

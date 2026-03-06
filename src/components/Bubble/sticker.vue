@@ -36,11 +36,11 @@ const fetchStickerInfo = async () => {
   const body = props.message.messageBody;
   // 优先使用 content 作为 id，其次尝试 id 字段
   const stickerId = body?.content || body?.id;
-  
+
   if (!stickerId) {
-    // 如果没有 ID，尝试使用 path 作为降级方案
-    if (body?.path) {
-      stickerUrl.value = body.path;
+    // 如果没有 ID，尝试使用 key 作为降级方案
+    if (body?.key) {
+      stickerUrl.value = body.key;
     }
     return;
   }
@@ -50,14 +50,14 @@ const fetchStickerInfo = async () => {
     const res: any = await API.GetEmojiInfo(stickerId);
     if (res && res.url) {
       stickerUrl.value = res.url;
-    } else if (body?.path) {
-      stickerUrl.value = body.path;
+    } else if (body?.key) {
+      stickerUrl.value = body.key;
     }
   } catch (error) {
     console.error("Failed to fetch sticker info:", error);
-    // 出错时尝试使用 path
-    if (body?.path) {
-      stickerUrl.value = body.path;
+    // 出错时尝试使用 key
+    if (body?.key) {
+      stickerUrl.value = body.key;
     }
   } finally {
     loading.value = false;
@@ -134,18 +134,18 @@ const { menuConfig, setTarget } = useMessageContextMenu<any>({
     border-radius: 5px;
     overflow: hidden;
     transition: transform 0.2s ease;
-    min-height: 50px;
-    min-width: 50px;
+    min-height: 40px;
+    min-width: 40px;
     justify-content: center;
     align-items: center;
 
     img {
       display: block;
-      max-width: 150px;
-      max-height: 150px;
+      max-width: 120px;
+      max-height: 120px;
       object-fit: cover;
       cursor: pointer;
-      border-radius: 8px;
+      // border-radius: 2px;
       /* box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); */
     }
 
@@ -211,7 +211,9 @@ const { menuConfig, setTarget } = useMessageContextMenu<any>({
   0% {
     background-color: #9880ff;
   }
-  50%, 100% {
+
+  50%,
+  100% {
     background-color: rgba(152, 128, 255, 0.2);
   }
 }
