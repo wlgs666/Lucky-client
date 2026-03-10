@@ -97,9 +97,11 @@ export const useUserStore = defineStore(StoresEnum.USER, () => {
         throw new ValidationError("登录响应无效");
       }
 
+      storage.set("userId", res.userId);
+
       // 2. 并行处理：安全存储 + 状态更新
       await Promise.all([
-        await tokenManager.set({
+        tokenManager.set({
           accessToken: res.accessToken,
           refreshToken: res.refreshToken,
           accessExpiresAt: res.accessExpiresAt || Date.now() + 7200000,
@@ -107,10 +109,8 @@ export const useUserStore = defineStore(StoresEnum.USER, () => {
         }),
         (async () => {
           token.value = res.accessToken;
-          storage.set("userId", res.userId);
           storage.set("token", res.accessToken);
           userInfo.value.userId = res.userId;
-          // 3. 更新 WebSocket Token
           wsUpdateToken(res.accessToken);
         })()
       ]);
@@ -167,8 +167,13 @@ export const useUserStore = defineStore(StoresEnum.USER, () => {
       if (refreshToken) {
         api.RefreshToken(refreshToken).then(async (res: any) => {
           if (res) {
+            const resolvedUserId = res.userId || userInfo.value.userId || storage.get("userId");
+            if (resolvedUserId) {
+              storage.set("userId", resolvedUserId);
+            }
+
             await Promise.all([
-              await tokenManager.set({
+              tokenManager.set({
                 accessToken: res.accessToken,
                 refreshToken: res.refreshToken,
                 accessExpiresAt: res.accessExpiresAt || Date.now() + 7200000,
@@ -176,9 +181,10 @@ export const useUserStore = defineStore(StoresEnum.USER, () => {
               }),
               (async () => {
                 token.value = res.accessToken;
-                storage.set("userId", res.userId);
                 storage.set("token", res.accessToken);
-                userInfo.value.userId = res.userId;
+                if (resolvedUserId) {
+                  userInfo.value.userId = resolvedUserId;
+                }
               })()
             ]);
             if (res.accessToken) {

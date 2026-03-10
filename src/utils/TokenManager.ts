@@ -35,13 +35,23 @@ interface StorageAdapter {
     clear(): Promise<void>;
 }
 
+const resolveStoredUserId = (): string | null => {
+    const userId = storage.get("userId");
+    if (!userId || typeof userId !== "string") return null;
+    const normalized = userId.trim();
+    return normalized ? normalized : null;
+};
+
 /** Tauri Store 适配器 (快速，推荐) */
 class TauriStoreAdapter implements StorageAdapter {
     private store: Store | null = null;
 
     private async getStore(): Promise<Store> {
         if (this.store) return this.store;
-        const userId = storage.get("userId");
+        const userId = resolveStoredUserId();
+        if (!userId) {
+            throw new Error("Missing userId for token storage");
+        }
         const path = await join(await appDataDir(), "users", userId, CONF.STORE_FILE);
         this.store = await loadStore(path, { autoSave: true });
         return this.store;
@@ -69,7 +79,10 @@ class StrongholdAdapter implements StorageAdapter {
 
     private async getContext() {
         if (this.ctx) return this.ctx;
-        const userId = storage.get("userId");
+        const userId = resolveStoredUserId();
+        if (!userId) {
+            throw new Error("Missing userId for token storage");
+        }
         const path = await join(await appDataDir(), "users", userId, CONF.VAULT);
         const sh = await Stronghold.load(path, CONF.PASS);
 
@@ -157,6 +170,7 @@ class TokenManager {
     /** 获取 Token (优先读内存，无内存读磁盘) */
     async get(): Promise<TokenPayload | null> {
         if (this.mem) return this.mem;
+        if (!resolveStoredUserId()) return null;
         this.mem = await this.adapter.get();
         return this.mem;
     }
@@ -193,6 +207,7 @@ class TokenManager {
     /** 清空 Token */
     async clear() {
         this.mem = null;
+        if (!resolveStoredUserId()) return;
         await this.adapter.clear();
     }
 }

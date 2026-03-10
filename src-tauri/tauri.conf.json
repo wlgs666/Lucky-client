@@ -61,8 +61,7 @@
     "macOS": {
       "entitlements": "./src-tauri/Info.plist"
     },
-    "externalBin": ["bin/ffmpeg"],
-    "resources": ["bin/*", "Info.plist"],
+    "resources": ["Info.plist"],
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
   },
   "plugins": {

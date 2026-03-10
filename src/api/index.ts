@@ -8,7 +8,7 @@ import { ElMessage } from "element-plus";
 const Http = HttpClient.create({
   baseURL: import.meta.env.VITE_API_SERVER,
   headers: { "Content-Type": "application/json" },
-  timeout: 10000,
+  timeout: 20000,
 });
 
 // 添加请求拦截器（注入 Token 和签名）

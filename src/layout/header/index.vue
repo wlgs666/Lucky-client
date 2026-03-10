@@ -1,7 +1,7 @@
 <template>
   <el-header>
-    <el-row style="height: 60px">
-      <el-col :span="20" data-tauri-drag-region style="height: 60px">
+    <el-row class="header-row">
+      <el-col :span="20" class="header-main" data-tauri-drag-region>
         <div class="chat-header">
           <Search />
         </div>
@@ -9,15 +9,15 @@
           <Name data-tauri-drag-region></Name>
         </div>
       </el-col>
-      <el-col :span="4" data-tauri-drag-region style="height: 60px">
-        <el-row v-if="currPlatform !== 'macos'" style="height: 30px">
+      <el-col :span="4" class="header-actions">
+        <el-row v-if="!isMacPlatform" class="actions-top">
           <System about-visible />
         </el-row>
-        <el-row v-else data-tauri-drag-region style="height: 30px"></el-row>
+        <el-row v-else class="actions-top drag-only" data-tauri-drag-region></el-row>
 
-        <el-row style="height: 30px">
+        <el-row class="actions-bottom">
           <el-col :span="18"></el-col>
-          <el-col :span="6">
+          <el-col :span="6" class="detail-entry">
             <el-button v-if="chatStore.getShowDetailBtn" class="control-el-button" link
               @click="chatStore.handleChatDetail">
               <i class="iconfont icon-sandian" style="font-size: 25px"></i>
@@ -32,12 +32,13 @@
 <script lang="ts" setup>
 import Search from "@/components/Search/index.vue";
 import System from "@/components/System/index.vue";
+import { useSystemClose } from "@/hooks/useSystem";
 import { useChatStore } from "@/store/modules/chat";
 import Name from "./name/index.vue";
-import { useSystemClose } from "@/hooks/useSystem";
 
 const { currPlatform } = useSystemClose();
 const chatStore = useChatStore();
+const isMacPlatform = computed(() => currPlatform === "macos" || currPlatform === "ios");
 </script>
 
 <style lang="scss" scoped>
@@ -54,6 +55,30 @@ const chatStore = useChatStore();
 }
 
 .chat-header-name {
+  width: 100%;
+}
+
+.header-row,
+.header-main,
+.header-actions {
+  height: 60px;
+}
+
+.actions-top,
+.actions-bottom {
+  height: 30px;
+}
+
+.actions-bottom {
+  align-items: center;
+}
+
+.detail-entry {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.drag-only {
   width: 100%;
 }
 

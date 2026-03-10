@@ -5,7 +5,7 @@
     <div class="image-wrapper">
       <img v-if="stickerUrl" :src="stickerUrl" alt="Sticker" class="img-bubble lazy-img" loading="lazy" />
       <div v-else class="loading-placeholder">
-        <div class="dot-flashing"></div>
+        <div class="spinner"></div>
       </div>
     </div>
   </div>
@@ -166,55 +166,18 @@ const { menuConfig, setTarget } = useMessageContextMenu<any>({
 }
 
 // 简单的加载动画
-.dot-flashing {
-  position: relative;
-  width: 6px;
-  height: 6px;
-  border-radius: 5px;
-  background-color: #9880ff;
-  color: #9880ff;
-  animation: dot-flashing 1s infinite linear alternate;
-  animation-delay: 0.5s;
+.spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(152, 128, 255, 0.2);
+  border-top-color: #9880ff;
+  animation: spinner-rotate 0.8s linear infinite;
 }
 
-.dot-flashing::before,
-.dot-flashing::after {
-  content: "";
-  display: inline-block;
-  position: absolute;
-  top: 0;
-}
-
-.dot-flashing::before {
-  left: -10px;
-  width: 6px;
-  height: 6px;
-  border-radius: 5px;
-  background-color: #9880ff;
-  color: #9880ff;
-  animation: dot-flashing 1s infinite alternate;
-  animation-delay: 0s;
-}
-
-.dot-flashing::after {
-  left: 10px;
-  width: 6px;
-  height: 6px;
-  border-radius: 5px;
-  background-color: #9880ff;
-  color: #9880ff;
-  animation: dot-flashing 1s infinite alternate;
-  animation-delay: 1s;
-}
-
-@keyframes dot-flashing {
-  0% {
-    background-color: #9880ff;
-  }
-
-  50%,
-  100% {
-    background-color: rgba(152, 128, 255, 0.2);
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
   }
 }
 </style>
