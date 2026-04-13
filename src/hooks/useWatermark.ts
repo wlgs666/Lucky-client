@@ -54,7 +54,7 @@ export function useWatermark(appendEl: HTMLElement | null = document.body) {
       ctx.clearRect(0, 0, cellWidth, cellHeight);
       ctx.rotate((rotate * Math.PI) / 180);
       ctx.font = `${fontSize}px Vedana`;
-      ctx.fillStyle = settingStore.getIsDark() ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)";
+      ctx.fillStyle = settingStore.getIsDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       ctx.fillText(text, cellWidth / 20, cellHeight / 2);
@@ -92,7 +92,7 @@ export function useWatermark(appendEl: HTMLElement | null = document.body) {
   };
 
   watch(
-    () => settingStore.getIsDark(),
+    () => settingStore.getIsDark,
     () => {
       if (watermarkOptions) {
         createWatermark(watermarkOptions);

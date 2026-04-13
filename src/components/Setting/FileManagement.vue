@@ -67,7 +67,7 @@ const autoDownload = computed({
 //     set: v => (file.readonly = v)
 //   });
 const savePath = computed({
-  get: () => file.key,
+  get: () => file.path,
   set: v => (file.path = v)
 });
 

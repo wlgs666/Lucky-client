@@ -2,7 +2,7 @@
   <div ref="boxRef" class="vl-box" @scroll="handleScroll">
     <div :style="{ height: boxHeight + 'px' }">
       <!-- 虚拟列表项，携带绝对索引 absIndex -->
-      <div v-for="({ item, absIndex }, idx) in offsetData" :key="item.chatId"
+      <div v-for="{ item, absIndex } in offsetData" :key="item.chatId"
         :style="{ height: rowHeight + 'px', top: absIndex * rowHeight + 'px' }" class="vl-box-item">
         <div v-context-menu="getMenuConfig(item)" :class="{ pinned: item.isTop == 1, active: isActive(item) }"
           class="item" @click="handleChooseChat(item)">
@@ -21,8 +21,8 @@
 <script lang="ts" setup>
 import type Chats from "@/database/entity/Chats";
 import { useChatStore } from "@/store/modules/chat";
-import { useMessageStore } from "@/store/modules/message";
 import { useMediaCacheStore } from "@/store/modules/media";
+import { useMessageStore } from "@/store/modules/message";
 import { useWindowSize } from "@vueuse/core";
 import { ElMessageBox } from "element-plus";
 import { computed, ref } from "vue";
@@ -78,6 +78,8 @@ const isActive = (item: Chats) => {
   return item.chatId === selectedId.value;
 };
 
+const promiseTry = <T>(fn: () => T | Promise<T>) => Promise.resolve().then(fn);
+
 // 改造的 getMenuConfig：使用 computed 跟踪 item.isTop，并通过 getter 暴露 options（保持外部使用不变）
 const getMenuConfig = (item: Chats) => {
   // 获取当前item
@@ -90,24 +92,25 @@ const getMenuConfig = (item: Chats) => {
     { label: "删除会话", value: "delete" }
   ]);
 
+  const actionHandlers: Record<string, () => void | Promise<void>> = {
+    delete: async () => {
+      await ElMessageBox.confirm(`确定删除与 ${currentItem.value?.name ?? item.name} 的会话?`, "删除会话", {
+        distinguishCancelAndClose: true,
+        confirmButtonText: "确认",
+        cancelButtonText: "取消"
+      });
+      await chatMessageStore.handleDeleteChat(currentItem.value ?? item);
+    },
+    pin: () => chatMessageStore.handlePinChat(currentItem.value ?? item),
+    mute: () => chatMessageStore.handleMuteChat(currentItem.value ?? item)
+  };
+
   const callback = async (action: string) => {
-    try {
-      if (action === "delete") {
-        await ElMessageBox.confirm(`确定删除与 ${currentItem.value?.name ?? item.name} 的会话?`, "删除会话", {
-          distinguishCancelAndClose: true,
-          confirmButtonText: "确认",
-          cancelButtonText: "取消"
-        });
-        await chatMessageStore.handleDeleteChat(currentItem.value ?? item);
-      }
-      if (action === "pin") {
-        await chatMessageStore.handlePinChat(currentItem.value ?? item);
-      }
-      if (action === "mute") {
-        await chatMessageStore.handleMuteChat(currentItem.value ?? item);
-      }
-    } catch {
-    }
+    await promiseTry(async () => {
+      const handler = actionHandlers[action];
+      if (!handler) return;
+      await handler();
+    }).catch(() => undefined);
   };
 
   return {

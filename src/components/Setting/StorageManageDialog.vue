@@ -84,7 +84,7 @@
   import { useStorageSpace } from "@/hooks/useStorageSpace";
 import { ElMessage } from "element-plus";
 
-  const { info, refresh, formatBytes } = useStorageSpace();
+  const { info, formatBytes } = useStorageSpace();
 
   const dialogVisible = ref(false);
 

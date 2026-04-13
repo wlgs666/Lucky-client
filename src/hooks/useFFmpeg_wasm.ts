@@ -1,8 +1,8 @@
 // src/hooks/useFFmpeg.ts
-import { computed, ref } from "vue";
+import { logger as appLogger } from "@/hooks/useLogger";
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
-import { logger as appLogger } from "@/hooks/useLogger";
+import { computed, ref } from "vue";
 
 // import { Command } from '@tauri-apps/plugin-shell';
 // // `binaries/my-sidecar` 是在 `tauri.conf.json > tauri > bundle > externalBin` 指定的确切值。
@@ -48,6 +48,7 @@ export function useFFmpeg(options: UseFFmpegOptions = {}) {
   const mediaRecorder = ref<MediaRecorder | null>(null);
   const recordedChunks: Blob[] = []; // session 内部缓冲块
   const error = ref<string | null>(null);
+  const promiseTry = <T>(fn: () => T | Promise<T>) => Promise.resolve().then(fn);
 
   // 默认 ffmpeg core 地址（可被 options.coreBaseUrl 覆盖）
   const DEFAULT_FFMPEG_BASE = "https://unpkg.com/@ffmpeg/core@0.12.4/dist/esm";
@@ -129,10 +130,7 @@ export function useFFmpeg(options: UseFFmpegOptions = {}) {
       throw e;
     } finally {
       running.value = false;
-      try {
-        ff.off("progress", progHandler);
-      } catch {
-      }
+      await promiseTry(() => ff.off("progress", progHandler)).catch(() => undefined);
     }
   }
 
@@ -164,11 +162,10 @@ export function useFFmpeg(options: UseFFmpegOptions = {}) {
     await runFFmpeg(args);
     const out = await ff.readFile(outName);
     // 清理文件
-    try {
+    await promiseTry(async () => {
       await ff.deleteFile(inputName);
       await ff.deleteFile(outName);
-    } catch {
-    }
+    }).catch(() => undefined);
     return new Uint8Array(out as any);
   }
 
@@ -269,15 +266,11 @@ export function useFFmpeg(options: UseFFmpegOptions = {}) {
     // helper: finalize
     const finalize = async () => {
       // 停止所有 tracks（释放共享）
-      try {
+      await promiseTry(() => {
         mediaStream.value?.getTracks().forEach(t => {
-          try {
-            t.stop();
-          } catch {
-          }
+          void promiseTry(() => t.stop()).catch(() => undefined);
         });
-      } catch {
-      }
+      }).catch(() => undefined);
       mediaStream.value = null;
       mediaRecorder.value = null;
       isRecording.value = false;
@@ -321,11 +314,7 @@ export function useFFmpeg(options: UseFFmpegOptions = {}) {
             },
             { once: true }
           );
-          try {
-            mediaRecorder.value.stop();
-          } catch {
-            /* ignore */
-          }
+          void promiseTry(() => mediaRecorder.value?.stop()).catch(() => undefined);
         } else {
           // 已经停止
           finalize().then(r => resolve(r));
@@ -343,17 +332,11 @@ export function useFFmpeg(options: UseFFmpegOptions = {}) {
   function cancelScreenRecord() {
     try {
       if (mediaRecorder.value && mediaRecorder.value.state !== "inactive") {
-        try {
-          mediaRecorder.value.stop();
-        } catch {
-        }
+        void promiseTry(() => mediaRecorder.value?.stop()).catch(() => undefined);
       }
       if (mediaStream.value) {
         mediaStream.value.getTracks().forEach(t => {
-          try {
-            t.stop();
-          } catch {
-          }
+          void promiseTry(() => t.stop()).catch(() => undefined);
         });
       }
     } finally {
@@ -400,10 +383,7 @@ export function useFFmpeg(options: UseFFmpegOptions = {}) {
     // stop/kill ffmpeg (轻量清理)
     cancelFFmpeg: () => {
       if (!GLOBAL_FFMPEG) return;
-      try {
-        (GLOBAL_FFMPEG as any).terminate?.();
-      } catch {
-      }
+      void promiseTry(() => (GLOBAL_FFMPEG as any).terminate?.()).catch(() => undefined);
       GLOBAL_FFMPEG = null;
       GLOBAL_LOAD_PROMISE = null;
       ready.value = false;

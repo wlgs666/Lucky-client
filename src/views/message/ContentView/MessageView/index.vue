@@ -27,20 +27,24 @@
 import GroupDetail from "@/components/ChatDetail/group.vue";
 import SingleDetail from "@/components/ChatDetail/single.vue";
 import { MessageType } from "@/constants";
+import type Chats from "@/database/entity/Chats";
 import { useChatStore } from "@/store/modules/chat";
-import { useMessageStore } from "@/store/modules/message";
 import { useFriendsStore } from "@/store/modules/friends";
+import { useMessageStore } from "@/store/modules/message";
 import { useDebounceFn } from "@vueuse/core";
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { DynamicScroller, DynamicScrollerItem } from "vue-virtual-scroller";
 
 // ========================= 类型定义 =========================
 interface MessageItem {
-  messageId: string;
+  messageId?: string;
   messageTime: number;
   isOwner?: boolean;
   [key: string]: unknown;
 }
+
+type ValidMessageItem = MessageItem & { messageId: string };
+type MessageSnapshot = { firstId: string | null; lastId: string | null; length: number };
 
 interface ScrollerInstance {
   $el: HTMLElement;
@@ -52,7 +56,7 @@ interface ScrollerInstance {
 const props = defineProps<{
   data: MessageItem[];
   count: number;
-  chat: Record<string, unknown>;
+  chat: Chats;
 }>();
 
 const TIME_GAP_THRESHOLD = 5 * 60 * 1000; // 5分钟
@@ -63,6 +67,11 @@ const messageStore = useMessageStore();
 const friendStore = useFriendsStore();
 
 const scrollerRef = ref<ScrollerInstance | null>(null);
+const loadMoreRequestId = ref(0);
+const autoScrollState = ref({
+  rafId: null as number | null,
+  behavior: "smooth" as ScrollBehavior,
+});
 
 // 滚动状态
 const scrollState = ref({
@@ -73,22 +82,23 @@ const scrollState = ref({
 });
 
 // 过滤有效消息（确保每条消息都有有效的 messageId）
-const validMessages = computed(() => {
+const validMessages = computed<ValidMessageItem[]>(() => {
   if (!Array.isArray(props.data)) return [];
 
   const seen = new Set<string>();
-  return props.data.filter((item) => {
+  const result: ValidMessageItem[] = [];
+  props.data.forEach((item) => {
     // 确保有有效的 messageId
-    if (!item?.messageId) return false;
+    if (!item?.messageId) return;
 
     const id = String(item.messageId);
 
     // 去重
-    if (seen.has(id)) return false;
+    if (seen.has(id)) return;
     seen.add(id);
-
-    return true;
+    result.push({ ...item, messageId: id });
   });
+  return result;
 });
 
 // 是否是群聊
@@ -103,6 +113,13 @@ const detailComponent = computed(() =>
 
 // 是否有更多消息
 const hasMoreMessages = computed(() => props.count > 0);
+const currentChatId = computed(() => String(props.chat?.chatId ?? ""));
+const messageSignature = computed(() => {
+  const messages = validMessages.value;
+  const firstId = messages[0]?.messageId ?? "";
+  const lastId = messages[messages.length - 1]?.messageId ?? "";
+  return `${messages.length}:${firstId}:${lastId}`;
+});
 
 // 获取滚动元素
 const getScrollerEl = (): HTMLElement | null => scrollerRef.value?.$el ?? null;
@@ -135,18 +152,57 @@ const shouldDisplayTime = (index: number): boolean => {
   return curr.messageTime - prev.messageTime >= TIME_GAP_THRESHOLD;
 };
 
+const createSnapshot = (messages: ValidMessageItem[]): MessageSnapshot => ({
+  firstId: messages[0]?.messageId ?? null,
+  lastId: messages[messages.length - 1]?.messageId ?? null,
+  length: messages.length,
+});
+
+const messageSnapshot = ref<MessageSnapshot>(createSnapshot(validMessages.value));
+
+const isHeadPrepended = (prev: MessageSnapshot, next: MessageSnapshot) =>
+  next.length > prev.length && prev.lastId !== null && next.lastId === prev.lastId && next.firstId !== prev.firstId;
+
+const isTailAppended = (prev: MessageSnapshot, next: MessageSnapshot) =>
+  next.length > prev.length && prev.firstId !== null && next.firstId === prev.firstId && next.lastId !== prev.lastId;
+
+const resetScrollState = () => {
+  scrollState.value = {
+    previousHeight: 0,
+    previousTop: 0,
+    isLoadingMore: false,
+    isAtBottom: true,
+  };
+};
+
 // 加载更多消息
-const loadMoreMessages = () => {
+const loadMoreMessages = async () => {
+  if (scrollState.value.isLoadingMore || !hasMoreMessages.value) return;
+
+  const requestId = ++loadMoreRequestId.value;
+  const expectedChatId = currentChatId.value;
   const el = getScrollerEl();
-  if (el) {
-    scrollState.value = {
-      ...scrollState.value,
-      previousHeight: el.scrollHeight,
-      previousTop: el.scrollTop,
-      isLoadingMore: true,
-    };
+  if (!el) return;
+
+  scrollState.value = {
+    ...scrollState.value,
+    previousHeight: el.scrollHeight,
+    previousTop: el.scrollTop,
+    isLoadingMore: true,
+  };
+
+  try {
+    const loaded = await messageStore.handleMoreMessage();
+    if (requestId !== loadMoreRequestId.value || currentChatId.value !== expectedChatId) {
+      return;
+    }
+    if (!loaded) {
+      scrollState.value.isLoadingMore = false;
+    }
+  } catch {
+    if (requestId !== loadMoreRequestId.value) return;
+    scrollState.value.isLoadingMore = false;
   }
-  messageStore.handleMoreMessage();
 };
 
 // 删除会话对象
@@ -189,6 +245,24 @@ const scrollToBottom = async (behavior: ScrollBehavior = "smooth") => {
   });
 };
 
+const scheduleAutoScrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+  const state = autoScrollState.value;
+  if (behavior === "auto") {
+    state.behavior = "auto";
+  } else if (state.behavior !== "auto") {
+    state.behavior = "smooth";
+  }
+
+  if (state.rafId !== null) return;
+
+  state.rafId = requestAnimationFrame(() => {
+    const currentBehavior = autoScrollState.value.behavior;
+    autoScrollState.value.behavior = "smooth";
+    autoScrollState.value.rafId = null;
+    void scrollToBottom(currentBehavior);
+  });
+};
+
 // 检查滚动位置
 const checkScrollPosition = () => {
   const el = getScrollerEl();
@@ -223,30 +297,68 @@ const handleNewMessages = async (newLen: number, oldLen: number) => {
 
   // 自己发送的消息或已在底部时，自动滚动
   if (isOwnMessage || scrollState.value.isAtBottom) {
-    await scrollToBottom("smooth");
+    scheduleAutoScrollToBottom("smooth");
   }
 };
 
-onMounted(() => scrollToBottom("auto"));
+onMounted(() => {
+  messageSnapshot.value = createSnapshot(validMessages.value);
+  scheduleAutoScrollToBottom("auto");
+});
+
+watch(
+  () => currentChatId.value,
+  async (newChatId, oldChatId) => {
+    if (!newChatId || newChatId === oldChatId) return;
+    loadMoreRequestId.value++;
+    resetScrollState();
+    messageSnapshot.value = createSnapshot(validMessages.value);
+    if (props.chat?.unread) {
+      await chatStore.handleUpdateReadStatus(props.chat);
+    }
+    scheduleAutoScrollToBottom("auto");
+  }
+);
 
 // 监听有效消息列表变化
 watch(
-  () => validMessages.value.length,
-  async (newLen, oldLen = 0) => {
+  () => messageSignature.value,
+  async () => {
     await nextTick();
     const el = getScrollerEl();
     if (!el) return;
 
     updateScroller();
 
-    if (scrollState.value.isLoadingMore) {
+    const prevSnapshot = messageSnapshot.value;
+    const nextSnapshot = createSnapshot(validMessages.value);
+    const headPrepended = isHeadPrepended(prevSnapshot, nextSnapshot);
+    const tailAppended = isTailAppended(prevSnapshot, nextSnapshot);
+    const initialFilled = prevSnapshot.length === 0 && nextSnapshot.length > 0;
+
+    if (scrollState.value.isLoadingMore && headPrepended) {
       handleLoadMoreComplete(el);
-      return;
+    } else if (scrollState.value.isLoadingMore && !headPrepended) {
+      scrollState.value.isLoadingMore = false;
     }
 
-    await handleNewMessages(newLen, oldLen);
+    if (initialFilled) {
+      scheduleAutoScrollToBottom("auto");
+    } else if (tailAppended) {
+      await handleNewMessages(nextSnapshot.length, prevSnapshot.length);
+    }
+
+    messageSnapshot.value = nextSnapshot;
   }
 );
+
+onBeforeUnmount(() => {
+  const rafId = autoScrollState.value.rafId;
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    autoScrollState.value.rafId = null;
+  }
+});
 </script>
 
 <style lang="scss" scoped>

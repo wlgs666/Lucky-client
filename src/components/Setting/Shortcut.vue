@@ -102,7 +102,7 @@ import { ref, shallowReactive } from "vue";
    */
   async function submitShortcut(field: keyof ShortcutForm) {
     if (pendingField.value === field) {
-      const ok = await updateShortcut(field, shortcutForm[field] as string);
+      await updateShortcut(field, shortcutForm[field] as string);
       const storeValue = settingStore.getShortcut(field) || defaultSettings[field];
       if (field === "detectConflict") {
         shortcutForm[field] = storeValue as boolean;
@@ -123,7 +123,7 @@ import { ref, shallowReactive } from "vue";
    */
   async function handleKeyChange(field: keyof ShortcutForm) {
     if (shortcutForm.sendMessage != defaultSettings.sendMessage) {
-      const ok = await updateShortcut(field, shortcutForm[field] as string);
+      await updateShortcut(field, shortcutForm[field] as string);
       const storeValue = settingStore.getShortcut(field) || defaultSettings[field];
       if (field === "detectConflict") {
         shortcutForm[field] = storeValue as boolean;

@@ -330,20 +330,15 @@ const startQRCodePolling = (code: string) => {
 
       if (!result || result.code !== code) return;
 
-      switch (result.status) {
-        case "EXPIRED":
+      const statusHandlers: Record<string, () => Promise<void> | void> = {
+        EXPIRED: () => {
           clearScanInterval();
           ElMessage.warning(t("pages.login.qrcode.expired"));
-          requestQRCode();
-          break;
-
-        case "SCANNED":
-          // 已扫码，等待授权，可以更新UI提示
-          break;
-
-        case "AUTHORIZED":
+          return requestQRCode();
+        },
+        SCANNED: () => undefined,
+        AUTHORIZED: async () => {
           clearScanInterval();
-          // 使用后台传过来的临时密码登录
           const formData = {
             principal: code,
             credentials: result.extra?.password,
@@ -361,8 +356,9 @@ const startQRCodePolling = (code: string) => {
           } catch (error) {
             console.error("扫码登录失败：", error);
           }
-          break;
-      }
+        }
+      };
+      await statusHandlers[result.status]?.();
     } catch (error) {
       console.error("检查二维码状态失败：", error);
       // 网络错误不中断轮询，继续尝试

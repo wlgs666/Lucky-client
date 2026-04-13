@@ -120,6 +120,14 @@ class MainManager {
     maxBatchSize: 200, // 高峰期最大批量
     backpressureThreshold: 500, // 背压阈值
     enablePriority: true, // 启用优先级
+  }, async batch => {
+    for (const item of batch) {
+      try {
+        await this.processQueuedMessage(item);
+      } catch (error) {
+        this.log.prettyError("websocket", "消息处理失败", error);
+      }
+    }
   });
   private readonly tray = useTray();
   private readonly tauriEvent = useTauriEvent();
@@ -550,60 +558,57 @@ class MainManager {
     const priority = this.getMessagePriority(res.code);
 
     // 使用消息队列 避免消息风暴
-    this.messageQueue.push(res, priority).then(async item => {
-      const { code, data } = item;
-
-      // 注册相关（静默处理）
-      if (code === MessageType.REGISTER_SUCCESS.code || code === MessageType.HEART_BEAT_SUCCESS.code) {
-        return;
-      }
-
-      if (code === MessageType.REGISTER_FAILED.code) {
-        this.log.prettyError("websocket", "注册失败");
-        return;
-      }
-
-      if (code === MessageType.HEART_BEAT_FAILED.code) {
-        this.log.prettyWarn("websocket", "心跳失败");
-        return;
-      }
-
-      if (!data) return;
-
-      // 认证相关（高优先级已处理）
-      if (code === MessageType.FORCE_LOGOUT.code) {
-        return this.stores.user.forceLogout(data?.message || "您的账号在其他设备登录");
-      }
-      if (code === MessageType.LOGIN_EXPIRED.code) {
-        return this.stores.user.forceLogout("登录已过期，请重新登录");
-      }
-      // 刷新Token
-      if (code === MessageType.REFRESH_TOKEN.code) {
-        return this.stores.user.refreshToken();
-      }
-
-      // 聊天消息
-      if (code === MessageType.SINGLE_MESSAGE.code || code === MessageType.GROUP_MESSAGE.code) {
-        await this.handleChatMessage(code, data);
-        return;
-      }
-
-      // 视频消息
-      if (code === MessageType.VIDEO_MESSAGE.code) {
-        this.stores.call.handleCallMessage(data);
-      }
-
-      // 群组操作
-      if (code === MessageType.GROUP_OPERATION.code) {
-        this.stores.group.applyGroupOperation(code, data);
-      }
-
-      // 消息操作
-      if (code === MessageType.MESSAGE_OPERATION.code) {
-        const message = IMessageAction.fromPlain(data);
-        this.stores.message.handleReCallMessage(message);
-      }
+    this.messageQueue.push(res, priority).catch(error => {
+      this.log.prettyError("websocket", `消息队列处理失败: ${error instanceof Error ? error.message : String(error)}`);
     });
+  }
+
+  private async processQueuedMessage(item: any): Promise<void> {
+    const { code, data } = item;
+
+    if (code === MessageType.REGISTER_SUCCESS.code || code === MessageType.HEART_BEAT_SUCCESS.code) {
+      return;
+    }
+
+    if (code === MessageType.REGISTER_FAILED.code) {
+      this.log.prettyError("websocket", "注册失败");
+      return;
+    }
+
+    if (code === MessageType.HEART_BEAT_FAILED.code) {
+      this.log.prettyWarn("websocket", "心跳失败");
+      return;
+    }
+
+    if (!data) return;
+
+    if (code === MessageType.FORCE_LOGOUT.code) {
+      return this.stores.user.forceLogout(data?.message || "您的账号在其他设备登录");
+    }
+    if (code === MessageType.LOGIN_EXPIRED.code) {
+      return this.stores.user.forceLogout("登录已过期，请重新登录");
+    }
+    if (code === MessageType.REFRESH_TOKEN.code) {
+      return this.stores.user.refreshToken();
+    }
+
+    if (code === MessageType.SINGLE_MESSAGE.code || code === MessageType.GROUP_MESSAGE.code) {
+      await this.handleChatMessage(code, data);
+      return;
+    }
+
+    if (code === MessageType.VIDEO_MESSAGE.code) {
+      this.stores.call.handleCallMessage(data);
+    }
+
+    if (code === MessageType.GROUP_OPERATION.code) {
+      this.stores.group.applyGroupOperation(code, data);
+    }
+
+    if (code === MessageType.MESSAGE_OPERATION.code) {
+      const message = IMessageAction.fromPlain(data);
+      this.stores.message.handleReCallMessage(message);
+    }
   }
 
   /** 根据消息类型获取优先级 */

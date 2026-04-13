@@ -7,10 +7,9 @@ function Transaction() {
 
     descriptor.value = async function(...args: any[]) {
       let db = (this as any).db;
-      let transaction;
       // 模拟事务开始
       log.prettyInfo("databse", `Transaction started for target: ${target} method: ${propertyKey}`);
-      transaction = await db.beginTransaction();
+      await db.beginTransaction();
       try {
         // 执行原始方法
         const result = await originalMethod.apply(this, args);

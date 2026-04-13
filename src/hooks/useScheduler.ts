@@ -89,30 +89,24 @@ export function useScheduler(callbacks: SchedulerCallbacks = {}) {
           data: msg.data,
         });
         break;
-
       case "started":
         activeTasks.value.add(msg.taskId);
         callbacks.onStarted?.(msg.taskId);
         break;
-
       case "stopped":
         activeTasks.value.delete(msg.taskId);
         callbacks.onStopped?.(msg.taskId);
         break;
-
       case "paused":
         callbacks.onPaused?.(msg.taskId);
         break;
-
       case "resumed":
         callbacks.onResumed?.(msg.taskId);
         break;
-
       case "completed":
         activeTasks.value.delete(msg.taskId);
         callbacks.onCompleted?.(msg.taskId, msg.totalRuns);
         break;
-
       case "error":
         callbacks.onError?.(msg.message, msg.taskId);
         break;
@@ -289,4 +283,3 @@ export function useGlobalScheduler(callbacks?: SchedulerCallbacks) {
 }
 
 export default useScheduler;
-

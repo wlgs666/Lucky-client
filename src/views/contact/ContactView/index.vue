@@ -8,39 +8,23 @@
       <!-- 分组标题 -->
       <div :ref="el => setTitleRef(el, idx)" class="contact-list__title" @click="toggleSection(key)">
         <span class="contact-list__arrow">
-          <i
-            :style="{ transform: sectionState[key] ? 'rotate(90deg)' : 'rotate(0deg)' }"
-            class="iconfont icon-right"
-          />
+          <i :style="{ transform: sectionState[key] ? 'rotate(90deg)' : 'rotate(0deg)' }" class="iconfont icon-right" />
         </span>
         <span>{{ sectionTitles[key] }}</span>
-        <span
-          v-if="sectionCounts[key]"
-          :class="{ 'contact-list__count--new': key === 'newFriends' && !store.ignore }"
-          class="contact-list__count"
-        >
+        <span v-if="sectionCounts[key]" :class="{ 'contact-list__count--new': key === 'newFriends' && !store.ignore }"
+          class="contact-list__count">
           {{ sectionCounts[key] }}
         </span>
       </div>
 
       <!-- 虚拟列表 -->
-      <VirtualList
-        v-if="sectionState[key]"
-        :buffer="5"
-        :item-height="64"
-        :items="store[key] ?? []"
-        root-selector=".contact-list"
-      >
+      <VirtualList v-if="sectionState[key]" :buffer="5" :item-height="64" :items="store[key] ?? []"
+        root-selector=".contact-list">
         <template #default="{ item }">
           <li class="contact-list__item" @click="handleItemClick(item, key)">
             <div class="contact-list__item-content no-select">
-              <Avatar
-                :avatar="item.avatar || ''"
-                :name="getDisplayName(item, key)"
-                :width="36"
-                :borderRadius="6"
-                :backgroundColor="key === 'groups' ? '#ffb36b' : undefined"
-              />
+              <Avatar :avatar="item.avatar || ''" :name="getDisplayName(item, key)" :width="36" :borderRadius="6"
+                :backgroundColor="key === 'groups' ? '#ffb36b' : undefined" />
               <span class="contact-list__name">{{ truncateName(getDisplayName(item, key)) }}</span>
               <span v-if="item.message" class="contact-list__message">{{ item.message }}</span>
               <span v-if="item.memberCount" class="contact-list__sub">
@@ -58,7 +42,7 @@
 import Avatar from "@/components/Avatar/index.vue";
 import { useChatStore } from "@/store/modules/chat";
 import { useFriendsStore } from "@/store/modules/friends";
-import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from "vue";
 
 // ========================= 类型定义 =========================
 type SectionKey = "newFriends" | "groups" | "contacts";
@@ -96,24 +80,32 @@ let observer: IntersectionObserver | null = null;
 
 // ========================= Computed =========================
 const sectionTitles = computed(() => ({
-    newFriends: t("pages.contacts.newFriends"),
-    groups: t("pages.contacts.groupChat"),
+  newFriends: t("pages.contacts.newFriends"),
+  groups: t("pages.contacts.groupChat"),
   contacts: t("pages.contacts.title"),
 }));
 
 const sectionCounts = computed(() => ({
-    newFriends: store.getTotalNewFriends ?? 0,
-    groups: store.groups?.length ?? 0,
+  newFriends: store.getTotalNewFriends ?? 0,
+  groups: store.groups?.length ?? 0,
   contacts: store.contacts?.length ?? 0,
 }));
 
 // ========================= 方法 =========================
-const setTitleRef = (el: HTMLElement | null, idx: number) => {
-  if (el) titleRefs.value[idx] = el;
+const toHTMLElement = (el: Element | ComponentPublicInstance | null): HTMLElement | null => {
+  if (el instanceof HTMLElement) return el;
+  const element = (el as ComponentPublicInstance | null)?.$el;
+  return element instanceof HTMLElement ? element : null;
 };
 
-const setSentinelRef = (el: HTMLElement | null, idx: number) => {
-  if (el) sentinelRefs.value[idx] = el;
+const setTitleRef = (el: Element | ComponentPublicInstance | null, idx: number) => {
+  const target = toHTMLElement(el);
+  if (target) titleRefs.value[idx] = target;
+};
+
+const setSentinelRef = (el: Element | ComponentPublicInstance | null, idx: number) => {
+  const target = toHTMLElement(el);
+  if (target) sentinelRefs.value[idx] = target;
 };
 
 const toggleSection = (key: SectionKey) => {
@@ -171,7 +163,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   observer?.disconnect();
-    observer = null;
+  observer = null;
 });
 
 // ========================= 内嵌虚拟列表组件 =========================
@@ -293,11 +285,13 @@ const VirtualList = defineComponent({
     border-radius: 10px;
     background-color: transparent;
   }
+
   &::-webkit-scrollbar {
     width: $width;
     height: 10px;
     background-color: transparent;
   }
+
   &::-webkit-scrollbar-thumb {
     border-radius: 10px;
     background-color: rgba(0, 0, 0, 0.3);
@@ -319,30 +313,30 @@ const VirtualList = defineComponent({
   &__section {
     position: relative;
 
-    & + & {
-  margin-top: 6px;
-}
-}
+    &+& {
+      margin-top: 6px;
+    }
+  }
 
   &__sentinel {
-  height: 1px;
-}
+    height: 1px;
+  }
 
   &__title {
-  display: flex;
-  align-items: center;
-  font-size: 14px;
+    display: flex;
+    align-items: center;
+    font-size: 14px;
     padding: 0 6px;
-  cursor: pointer;
-  user-select: none;
-  height: 36px;
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: #ffffff;
+    cursor: pointer;
+    user-select: none;
+    height: 36px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: #ffffff;
 
     &.stuck {
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
     }
   }
 
@@ -367,45 +361,45 @@ const VirtualList = defineComponent({
     &--new {
       background: var(--main-red-color);
       color: #fff;
+    }
   }
-}
 
   &__item {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 8px 6px;
-  margin-left: 10px;
-  border-radius: 6px;
-  width: 100%;
-  cursor: pointer;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 6px;
+    margin-left: 10px;
+    border-radius: 6px;
+    width: 100%;
+    cursor: pointer;
     list-style: none;
 
     &:hover {
-  background: #f7f7f7;
-}
+      background: #f7f7f7;
+    }
   }
 
   &__item-content {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  width: 100%;
-}
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+  }
 
   &__name {
-  font-size: 14px;
-  flex: 1 1 auto;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+    font-size: 14px;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   &__message,
   &__sub {
-  font-size: 12px;
-  color: #888;
-}
+    font-size: 12px;
+    color: #888;
+  }
 }
 </style>

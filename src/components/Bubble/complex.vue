@@ -67,7 +67,7 @@
             <div class="mixed-bubble__file-actions">
               <el-button :aria-label="t('mixed.download')" size="small" @click.stop="downloadFile(part)">{{
                 t("mixed.download")
-                }}
+              }}
               </el-button>
             </div>
           </div>
@@ -173,7 +173,8 @@ const ariaLabel = computed(() => {
 const showAvatar = computed(() => props.showAvatar ?? Boolean(props.avatarUrl ?? props.message?.avatar));
 const avatarUrl = computed(() => props.avatarUrl ?? props.message?.avatar ?? "");
 
-type MenuTarget = { type: string; part: any; idx: number } | null;
+type MenuTarget = { type: string; part: any; idx: string | number } | null;
+const promiseTry = <T>(fn: () => T | Promise<T>) => Promise.resolve().then(fn);
 
 function buildMenuOptions(target: MenuTarget) {
   if (!target) {
@@ -202,41 +203,45 @@ function buildMenuOptions(target: MenuTarget) {
   }
 }
 
+const actionHandlers: Record<string, (target: MenuTarget) => void | Promise<void>> = {
+  copyText: (target) => {
+    if (!target?.part?.content?.text) return;
+    const text = String(target.part.content.text);
+    copyToClipboard(text);
+    ElMessage.success(t("mixed.copied"));
+    emits("copy-text", { text });
+  },
+  copyAll: () => {
+    const all = buildPlainTextFromParts(parsed.value.parts);
+    copyToClipboard(all);
+    ElMessage.success(t("mixed.copied"));
+    emits("copy-text", { text: all });
+  },
+  openImage: (target) => {
+    if (!target?.part) return;
+    openImage(target.part);
+  },
+  openVideo: (target) => {
+    if (!target?.part) return;
+    openVideo(target.part);
+  },
+  download: (target) => {
+    if (!target?.part) return;
+    downloadFile(target.part);
+  },
+  openLocation: (target) => {
+    if (!target?.part) return;
+    openLocation(target.part);
+  }
+};
+
 const { menuConfig, setTarget } = useMessageContextMenu<MenuTarget>({
   getOptions: (target) => buildMenuOptions(target ?? null),
-  onAction: (action, target) => {
+  onAction: async (action, target) => {
     const activeTarget = target ?? null;
-    if (action === "copyText") {
-      if (activeTarget?.part?.content?.text) {
-        const text = String(activeTarget.part.content.text);
-        copyToClipboard(text);
-        ElMessage.success(t("mixed.copied"));
-        emits("copy-text", { text });
-      }
-      return;
-    }
-    if (action === "copyAll") {
-      const all = buildPlainTextFromParts(parsed.value.parts);
-      copyToClipboard(all);
-      ElMessage.success(t("mixed.copied"));
-      emits("copy-text", { text: all });
-      return;
-    }
-    if (action === "openImage") {
-      if (activeTarget?.part) openImage(activeTarget.part);
-      return;
-    }
-    if (action === "openVideo") {
-      if (activeTarget?.part) openVideo(activeTarget.part);
-      return;
-    }
-    if (action === "download") {
-      if (activeTarget?.part) downloadFile(activeTarget.part);
-      return;
-    }
-    if (action === "openLocation") {
-      if (activeTarget?.part) openLocation(activeTarget.part);
-    }
+    const handler = actionHandlers[action];
+    if (!handler) return;
+    await promiseTry(() => handler(activeTarget)).catch(() => undefined);
   }
 });
 

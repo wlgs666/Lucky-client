@@ -15,52 +15,61 @@
 import API from "@/api";
 import { Events } from "@/constants";
 import { globalEventBus } from "@/hooks/useEventBus";
+import { useLogger } from "@/hooks/useLogger";
 import { useMessageContextMenu } from "@/hooks/useMessageContextMenu";
 import { storage } from "@/utils/Storage";
 import { ElMessageBox } from "element-plus";
 import { ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 
-const props = defineProps({
-  message: {
-    type: Object,
-    required: true,
-    default: () => ({})
-  }
-});
+type MessageBody = {
+  key?: string;
+  id?: string;
+  content?: string;
+};
+
+type MessageItem = {
+  messageId: string;
+  messageBody?: MessageBody;
+  messageTime?: number;
+  fromId?: string;
+  isOwner?: boolean;
+  type?: string;
+};
+
+const props = defineProps<{
+  message: MessageItem;
+}>();
 
 const stickerUrl = ref("");
-const loading = ref(false);
+const { t } = useI18n();
+const logger = useLogger();
+const recallWindowMs = Number(import.meta.env.VITE_MESSAGE_RECALL_TIME) || 120000;
+const promiseTry = <T>(fn: () => T | Promise<T>) => Promise.resolve().then(fn);
+let lastRequestedStickerId = "";
 
-// 获取表情包信息
 const fetchStickerInfo = async () => {
   const body = props.message.messageBody;
-  // 优先使用 content 作为 id，其次尝试 id 字段
   const stickerId = body?.content || body?.id;
+  lastRequestedStickerId = stickerId || "";
 
   if (!stickerId) {
-    // 如果没有 ID，尝试使用 key 作为降级方案
-    if (body?.key) {
-      stickerUrl.value = body.key;
-    }
+    stickerUrl.value = body?.key || "";
     return;
   }
 
   try {
-    loading.value = true;
-    const res: any = await API.GetEmojiInfo(stickerId);
+    const res = await promiseTry(() => API.GetEmojiInfo(stickerId)) as { url?: string };
+    if (lastRequestedStickerId !== stickerId) return;
     if (res && res.url) {
       stickerUrl.value = res.url;
-    } else if (body?.key) {
-      stickerUrl.value = body.key;
+    } else {
+      stickerUrl.value = body?.key || "";
     }
   } catch (error) {
-    console.error("Failed to fetch sticker info:", error);
-    // 出错时尝试使用 key
-    if (body?.key) {
-      stickerUrl.value = body.key;
-    }
-  } finally {
-    loading.value = false;
+    if (lastRequestedStickerId !== stickerId) return;
+    stickerUrl.value = body?.key || "";
+    logger.warn("Failed to fetch sticker info", stickerId, error);
   }
 };
 
@@ -81,41 +90,47 @@ function isOwnerOfMessage(item: any) {
   return String(item.fromId) === String(currentUserId);
 }
 
-// 判断是否在撤回时间内
 function isWithinTwoMinutes(timestamp: number): boolean {
   const now = Date.now();
   const diff = Math.abs(now - timestamp);
-  return diff <= (Number(import.meta.env.VITE_MESSAGE_RECALL_TIME) || 120000);
+  return diff <= recallWindowMs;
 }
 
-// ===================== 右键菜单 =====================
-const { menuConfig, setTarget } = useMessageContextMenu<any>({
+const handleDelete = async (target: MessageItem) => {
+  await ElMessageBox.confirm(
+    t("components.dialog.deleteMessage.confirm"),
+    t("components.dialog.title.warning"),
+    {
+      distinguishCancelAndClose: true,
+      confirmButtonText: t("components.dialog.buttons.confirm"),
+      cancelButtonText: t("components.dialog.buttons.cancel"),
+      type: "warning"
+    }
+  );
+  globalEventBus.emit(Events.MESSAGE_DELETE, target);
+};
+
+const actionHandlers: Record<string, (target: MessageItem) => void | Promise<void>> = {
+  delete: (target) => handleDelete(target),
+  recall: (target) => {
+    globalEventBus.emit(Events.MESSAGE_RECALL, target);
+  }
+};
+
+const { menuConfig, setTarget } = useMessageContextMenu<MessageItem>({
   getOptions: (item) => {
     const target = item ?? props.message;
-    const options = [{ label: "删除", value: "delete" }];
-    if (isOwnerOfMessage(target) && isWithinTwoMinutes(target.messageTime)) {
-      options.push({ label: "撤回", value: "recall" });
+    const options = [{ label: t("common.actions.delete"), value: "delete" }];
+    if (isOwnerOfMessage(target) && !!target.messageTime && isWithinTwoMinutes(target.messageTime)) {
+      options.push({ label: t("common.actions.recall"), value: "recall" });
     }
     return options;
   },
   onAction: async (action, item) => {
     const target = item ?? props.message;
-    try {
-      if (action === "delete") {
-        await ElMessageBox.confirm("确定删除这条消息吗?", "提示", {
-          confirmButtonText: "确定",
-          cancelButtonText: "取消",
-          type: "warning"
-        });
-        globalEventBus.emit(Events.MESSAGE_DELETE, target);
-        return;
-      }
-      if (action === "recall") {
-        globalEventBus.emit(Events.MESSAGE_RECALL, target);
-      }
-    } catch {
-      // User cancelled or error
-    }
+    const handler = actionHandlers[action];
+    if (!handler) return;
+    await promiseTry(() => handler(target)).catch(() => undefined);
   },
   beforeShow: () => setTarget(props.message)
 });

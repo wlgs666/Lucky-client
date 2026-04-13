@@ -28,13 +28,11 @@
 
 <script lang="ts" setup>
 
-const props = defineProps<{
+defineProps<{
   isMuted: boolean;
   isVideoOff: boolean;
   isChatCollapsed: boolean;
 }>();
-
-// 说明：模板中直接使用 props（绑定 class）
 </script>
 
 <style lang="scss" scoped>

@@ -57,16 +57,12 @@ type TrimType = "both" | "left" | "right";
  */
 export function trim(str: string, type: TrimType = "both"): string {
   if (!str || typeof str !== "string") return "";
-
-  switch (type) {
-    case "left":
-      return str.replace(/^\s+/, "");
-    case "right":
-      return str.replace(/\s+$/, "");
-    case "both":
-    default:
-      return str.trim();
-  }
+  const trimHandlers: Record<TrimType, () => string> = {
+    left: () => str.replace(/^\s+/, ""),
+    right: () => str.replace(/\s+$/, ""),
+    both: () => str.trim()
+  };
+  return trimHandlers[type]();
 }
 
 // ===================== 手机号处理 =====================

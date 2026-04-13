@@ -11,8 +11,8 @@
   "app": {
     "windows": [
       {
-        "label": "login",
-        "title": "Login",
+        "label": "main",
+        "title": "Lucky",
         "fullscreen": false,
         "height": 400,
         "width": 280,

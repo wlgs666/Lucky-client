@@ -88,10 +88,13 @@ export class MessageQueue<T> {
   private isScheduled = false;
   private rafId: number | null = null;
   private timerId: ReturnType<typeof setTimeout> | null = null;
+  private processingPromise: Promise<void> | null = null;
+  private forceFlush = false;
 
   // 自适应参数
   private currentBatchSize: number;
   private lastProcessTime = 0;
+  private lastBatchSize = 0;
 
   // 统计数据
   private stats = {
@@ -144,12 +147,14 @@ export class MessageQueue<T> {
   /** 立即刷新队列 */
   async flushNow(): Promise<void> {
     this.cancelSchedule();
-    await this.processQueue();
+    this.forceFlush = true;
+    await this.ensureProcessing();
   }
 
   /** 停止并清空队列 */
   stopAndClear(reason = "Queue stopped"): void {
     this.cancelSchedule();
+    this.forceFlush = false;
     const error = new Error(reason);
     for (const item of this.queue) {
       item.reject(error);
@@ -201,7 +206,7 @@ export class MessageQueue<T> {
 
   /** 调度刷新 */
   private scheduleFlush(): void {
-    if (this.isScheduled) return;
+    if (this.isScheduled || this.processingPromise) return;
     this.isScheduled = true;
 
     const { scheduleInterval } = this.config;
@@ -233,7 +238,30 @@ export class MessageQueue<T> {
     this.isScheduled = false;
     this.rafId = null;
     this.timerId = null;
-    this.processQueue();
+    void this.ensureProcessing();
+  }
+
+  private ensureProcessing(): Promise<void> {
+    if (this.processingPromise) {
+      return this.processingPromise;
+    }
+
+    this.processingPromise = this.processQueue().finally(() => {
+      this.processingPromise = null;
+
+      if (this.queue.length > 0) {
+        if (this.forceFlush) {
+          void this.ensureProcessing();
+          return;
+        }
+        this.scheduleFlush();
+        return;
+      }
+
+      this.forceFlush = false;
+    });
+
+    return this.processingPromise;
   }
 
   /** 处理队列（时间切片） */
@@ -244,12 +272,11 @@ export class MessageQueue<T> {
     const { maxFrameTime } = this.config;
 
     while (this.queue.length > 0) {
-      // 时间切片检查
-      const elapsed = performance.now() - frameStart;
-      if (elapsed >= maxFrameTime) {
-        // 让出主线程，下一帧继续
-        this.scheduleFlush();
-        return;
+      if (!this.forceFlush) {
+        const elapsed = performance.now() - frameStart;
+        if (elapsed >= maxFrameTime) {
+          return;
+        }
       }
 
       // 计算本轮批大小（自适应）
@@ -261,6 +288,8 @@ export class MessageQueue<T> {
       // 自适应调整批大小
       this.adjustBatchSize();
     }
+
+    this.forceFlush = false;
   }
 
   /** 处理一批消息 */
@@ -296,6 +325,7 @@ export class MessageQueue<T> {
     }
 
     this.lastProcessTime = performance.now() - batchStart;
+    this.lastBatchSize = batch.length;
   }
 
   /** 自适应调整批大小 */
@@ -306,7 +336,8 @@ export class MessageQueue<T> {
 
     // 计算理想批大小：目标是每批处理时间约为 maxFrameTime 的 60%
     const targetTime = maxFrameTime * 0.6;
-    const timePerItem = this.lastProcessTime / this.currentBatchSize;
+    const processedCount = this.lastBatchSize || this.currentBatchSize;
+    const timePerItem = this.lastProcessTime / processedCount;
 
     if (timePerItem > 0) {
       const idealBatchSize = Math.floor(targetTime / timePerItem);

@@ -77,7 +77,6 @@
 
 import { Participant } from "@/types/env";
 import Avatar from "@/components/Avatar/index.vue";
-import { reactive } from "vue";
 
 /* ========== props / emits ========== */
 const props = defineProps<{
@@ -112,22 +111,6 @@ const canSend = computed(() => (localNewMessage.value || "").trim().length > 0);
 
 /* placeholder */
 const placeholderText = "输入消息，按 Enter 发送（Shift+Enter 换行）";
-
-const avatarLoadError = reactive<Record<string, boolean>>({});
-
-function onAvatarError(userId?: string) {
-  if (!userId) return;
-  avatarLoadError[userId] = true;
-  // 若需要强制重绘，可在此执行其它逻辑
-}
-
-function onAvatarLoad(userId?: string) {
-  if (!userId) return;
-  // 确保之前的错误记录被清除（如果缓存的 URL 恰好恢复）
-  if (avatarLoadError[userId]) {
-    delete avatarLoadError[userId];
-  }
-}
 
 /* textarea input */
 function onInput() {
@@ -184,12 +167,6 @@ function doSend() {
     // adjustTextareaHeight();
     scrollToBottom(true);
   });
-}
-
-/* 头像首字母 */
-function avatarInitial(name?: string) {
-  if (!name) return "U";
-  return String(name).trim().charAt(0).toUpperCase();
 }
 
 /* 判断是否为自己消息 */

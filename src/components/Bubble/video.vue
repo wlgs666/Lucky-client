@@ -27,15 +27,27 @@ import { ElMessageBox } from "element-plus";
 import { useI18n } from "vue-i18n";
 import ReplyQuote from "./ReplyQuote.vue";
 
-const props = defineProps({
-  message: {
-    type: Object,
-    required: true,
-    default: function () {
-      return {};
-    }
-  }
-});
+type MessageBody = {
+  key?: string;
+  name?: string;
+  replyMessage?: { messageId?: string; fromId?: string };
+};
+
+type MessageItem = {
+  messageId: string;
+  messageBody?: MessageBody;
+  messageTime?: number;
+  fromId?: string;
+  isOwner?: boolean;
+  name?: string;
+  toId?: string;
+  groupId?: string;
+  type?: string;
+};
+
+const props = defineProps<{
+  message: MessageItem;
+}>();
 
 const { t } = useI18n();
 const chatStore = useChatStore();
@@ -62,13 +74,15 @@ const store = useMediaCacheStore();
 const { downloadFile } = useFile();
 const videoRef = ref<HTMLVideoElement | null>(null);
 const duration = ref<number>(0);
+const recallWindowMs = Number(import.meta.env.VITE_MESSAGE_RECALL_TIME) || 120000;
+const promiseTry = <T>(fn: () => T | Promise<T>) => Promise.resolve().then(fn);
 
 const localPath = computed(() => store.getMedia(props.message.messageId) || props.message.messageBody?.key);
 
 onMounted(() => {
   const id = store.getId();
   if (id && (id == props.message?.toId || id == props.message?.groupId)) {
-    store.loadMedia(props.message?.messageId, props.message.messageBody?.key);
+    store.loadMedia(props.message.messageId, props.message.messageBody?.key || "");
   }
 });
 
@@ -85,7 +99,8 @@ const formatDuration = (seconds: number) => {
 };
 
 // 处理预览
-const handlePreview = (key: string) => {
+const handlePreview = (key?: string) => {
+  if (!key) return;
   ShowPreviewWindow("", key, "video");
 };
 
@@ -101,7 +116,7 @@ function isOwnerOfMessage(item: any) {
 function isWithinTwoMinutes(timestamp: number): boolean {
   const now = Date.now();
   const diff = Math.abs(now - timestamp);
-  return diff <= (import.meta.env.VITE_MESSAGE_RECALL_TIME || 120000);
+  return diff <= recallWindowMs;
 }
 
 /** 处理回复消息 */
@@ -115,8 +130,36 @@ function handleReply(msg: any): void {
   });
 }
 
+const handleDelete = async (target: MessageItem) => {
+  await ElMessageBox.confirm(
+    t("components.dialog.deleteMessage.confirm"),
+    t("components.dialog.title.warning"),
+    {
+      distinguishCancelAndClose: true,
+      confirmButtonText: t("components.dialog.buttons.confirm"),
+      cancelButtonText: t("components.dialog.buttons.cancel"),
+      type: "warning"
+    }
+  );
+  globalEventBus.emit(Events.MESSAGE_DELETE, target);
+};
+
+const handleSaveAs = async (target: MessageItem) => {
+  const fileName = target.messageBody?.name || `video_${Date.now()}.mp4`;
+  await downloadFile(fileName, target.messageBody?.key || "");
+};
+
+const actionHandlers: Record<string, (target: MessageItem) => void | Promise<void>> = {
+  reply: (target) => handleReply(target),
+  saveAs: (target) => handleSaveAs(target),
+  delete: (target) => handleDelete(target),
+  recall: (target) => {
+    globalEventBus.emit(Events.MESSAGE_RECALL, target);
+  }
+};
+
 // ===================== 右键菜单 =====================
-const { menuConfig, setTarget } = useMessageContextMenu<any>({
+const { menuConfig, setTarget } = useMessageContextMenu<MessageItem>({
   getOptions: (item) => {
     const target = item ?? props.message;
     const options = [
@@ -124,43 +167,16 @@ const { menuConfig, setTarget } = useMessageContextMenu<any>({
       { label: t("common.actions.saveAs"), value: "saveAs" },
       { label: t("common.actions.delete"), value: "delete" }
     ];
-    if (isOwnerOfMessage(target) && isWithinTwoMinutes(target.messageTime)) {
+    if (isOwnerOfMessage(target) && !!target.messageTime && isWithinTwoMinutes(target.messageTime)) {
       options.splice(2, 0, { label: t("common.actions.recall"), value: "recall" });
     }
     return options;
   },
   onAction: async (action, item) => {
     const target = item ?? props.message;
-    try {
-      if (action === "reply") {
-        handleReply(target);
-        return;
-      }
-      if (action === "saveAs") {
-        const fileName = target.messageBody?.name || `video_${Date.now()}.mp4`;
-        await downloadFile(fileName, target.messageBody?.key);
-        return;
-      }
-      if (action === "delete") {
-        await ElMessageBox.confirm(
-          t("components.dialog.deleteMessage.confirm"),
-          t("components.dialog.title.warning"),
-          {
-            distinguishCancelAndClose: true,
-            confirmButtonText: t("components.dialog.buttons.confirm"),
-            cancelButtonText: t("components.dialog.buttons.cancel"),
-            type: "warning"
-          }
-        );
-        globalEventBus.emit(Events.MESSAGE_DELETE, target);
-        return;
-      }
-      if (action === "recall") {
-        globalEventBus.emit(Events.MESSAGE_RECALL, target);
-      }
-    } catch {
-      // User cancelled or error
-    }
+    const handler = actionHandlers[action];
+    if (!handler) return;
+    await promiseTry(() => handler(target)).catch(() => undefined);
   },
   beforeShow: () => setTarget(props.message)
 });

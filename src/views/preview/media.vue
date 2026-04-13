@@ -187,7 +187,7 @@ const updateMediaContainerSize = () => {
 
 const init = async () => {
   let unlisten = await listen("preview-media-load", (event: any) => {
-    const { name, url, type } = event.payload;
+    const { url, type } = event.payload;
     useLogger().prettyInfo("preview load", event.payload);
     mediaUrl.value = url;
     isVideo.value = type === "video";

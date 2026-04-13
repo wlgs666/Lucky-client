@@ -9,9 +9,6 @@ import CryptoJS from "crypto-js";
  * sign: 签名值，由后端根据参数与秘钥生成
  */
 class Signer {
-  /** 5 分钟的过期阈值（秒）——与后端保持一致 */
-  private static readonly EXPIRE_TIME = 5 * 60;
-
   /**
    * 生成随机 nonce
    */

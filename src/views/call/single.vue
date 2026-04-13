@@ -59,16 +59,16 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import System from "@/components/System/index.vue";
-import Avatar from "@/components/Avatar/index.vue";
-import { ConnectionStatus, StoresEnum, MessageType } from "@/constants";
-import { emit, listen, UnlistenFn } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import WebRTC from "@/views/call/services/WebRTC";
 import api from "@/api/index";
+import Avatar from "@/components/Avatar/index.vue";
+import System from "@/components/System/index.vue";
+import { ConnectionStatus, MessageType, StoresEnum } from "@/constants";
 import { useCallStore } from "@/store/modules/call";
 import { useUserStore } from "@/store/modules/user";
+import WebRTC from "@/views/call/services/WebRTC";
+import { emit, listen, UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 
 const callStore = useCallStore();
 const userStore = useUserStore();
@@ -294,8 +294,8 @@ async function failed() {
 /** 处理收到的 call-loaded 事件 payload */
 async function handleMessage(videoMessage: any) {
   if (!videoMessage || typeof videoMessage.type !== "number") return;
-  switch (videoMessage.type) {
-    case MessageType.RTC_START_VIDEO_CALL.code: {
+  const handlers: Record<number, () => Promise<void>> = {
+    [MessageType.RTC_START_VIDEO_CALL.code]: async () => {
       // B 收到 A 的通话请求
       callStore.friendInfo.id = videoMessage.data.fromId ?? callStore.friendInfo.id;
 
@@ -329,10 +329,8 @@ async function handleMessage(videoMessage: any) {
 
       callEstablished.value = true;
       startTimer();
-      break;
-    }
-
-    case MessageType.RTC_ACCEPT.code: {
+    },
+    [MessageType.RTC_ACCEPT.code]: async () => {
       // A 收到 B 的接受，开始拉取 B 的流
       callStore.friendInfo.id = videoMessage.data.fromId ?? callStore.friendInfo.id;
 
@@ -361,36 +359,27 @@ async function handleMessage(videoMessage: any) {
 
       callEstablished.value = true;
       startTimer();
-      break;
-    }
-
-    case MessageType.RTC_REJECT.code: {
+    },
+    [MessageType.RTC_REJECT.code]: async () => {
       callStore.state = ConnectionStatus.CONNECTION_REFUSED.code;
       await rejectCall();
-      break;
-    }
-
-    case MessageType.RTC_FAILED.code: {
+    },
+    [MessageType.RTC_FAILED.code]: async () => {
       callStore.state = ConnectionStatus.ERROR.code;
       await failed();
-      break;
-    }
-
-    case MessageType.RTC_CANCEL.code: {
+    },
+    [MessageType.RTC_CANCEL.code]: async () => {
       callStore.state = ConnectionStatus.CANCELLED.code;
       await closeCallWindow();
-      break;
-    }
-
-    case MessageType.RTC_HANGUP.code: {
+    },
+    [MessageType.RTC_HANGUP.code]: async () => {
       callStore.state = ConnectionStatus.CONNECTION_LOST.code;
       await closeCallWindow();
-      break;
     }
-
-    default:
-      // ignore others like RTC_CANDIDATE handled by lower layer
-      break;
+  };
+  const handler = handlers[videoMessage.type];
+  if (handler) {
+    await handler();
   }
 }
 
@@ -426,7 +415,7 @@ function toggleSpeaker() {
 onMounted(async () => {
   // 注册两个监听（call-loadeds 由主窗口发起用来触发推流并发送 call 请求）
   try {
-    unlistenCallLoadeds = await listen("call-loadeds", async e => {
+    unlistenCallLoadeds = await listen("call-loadeds", async () => {
       // 进入连接流程（A 发起）
       callStore.state = ConnectionStatus.CONNECTING.code;
 

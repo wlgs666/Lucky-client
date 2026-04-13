@@ -5,7 +5,7 @@
  */
 
 import { ElMessage } from "element-plus";
-import type { AppError } from "./ErrorTypes";
+import type { AppError } from "../ErrorTypes";
 
 // ==================== 数据转换工具 ====================
 
@@ -440,7 +440,7 @@ export async function retry<T>(
   fn: () => Promise<T>,
   options: { maxRetries?: number; delay?: number; backoff?: number } = {}
 ): Promise<T> {
-  const { maxRetries = 3, delay = 1000, backoff = 2 } = options;
+  const { maxRetries = 3, delay: waitMs = 1000, backoff = 2 } = options;
 
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -449,7 +449,7 @@ export async function retry<T>(
       if (i === maxRetries - 1) {
         throw error;
       }
-      await delay(delay * Math.pow(backoff, i));
+      await delay(waitMs * Math.pow(backoff, i));
     }
   }
 

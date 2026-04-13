@@ -51,8 +51,8 @@
   const controlsRef = ref<HTMLElement | null>(null);
 
   // Hooks
-  const { startDrag, isDragging } = useDraggable(controlsRef);
-  const { startMousePoller, stopMousePoller, isPointButton } = useMousePoller(controlsRef);
+  const { startDrag } = useDraggable(controlsRef);
+  const { startMousePoller, stopMousePoller } = useMousePoller(controlsRef);
 
   const { t } = useI18n();
 

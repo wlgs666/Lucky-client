@@ -478,14 +478,11 @@ const canKickMember = (member: GroupMember) => canOperateMember(member);
 const canMuteMember = (member: GroupMember) => canOperateMember(member);
 
 const getRoleText = (role?: number) => {
-  switch (role) {
-    case GroupMemberRole.OWNER.code:
-      return $t("business.group.roles.owner");
-    case GroupMemberRole.ADMIN.code:
-      return $t("business.group.roles.admin");
-    default:
-      return $t("business.group.roles.member");
-  }
+  const roleTextMap: Record<number, string> = {
+    [GroupMemberRole.OWNER.code]: $t("business.group.roles.owner"),
+    [GroupMemberRole.ADMIN.code]: $t("business.group.roles.admin")
+  };
+  return roleTextMap[role ?? -1] || $t("business.group.roles.member");
 };
 
 // ==================== 事件处理 ====================

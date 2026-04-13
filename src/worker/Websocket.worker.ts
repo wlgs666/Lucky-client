@@ -63,23 +63,20 @@ class WebSocketWorker {
   }
 
   private handleCommand(cmd: WorkerCommand) {
+    const commandHandlers: Record<WorkerCommand["type"], () => void> = {
+      connect: () => this.initConnection(cmd as Extract<WorkerCommand, { type: "connect" }>),
+      send: () => this.send((cmd as Extract<WorkerCommand, { type: "send" }>).payload, (cmd as Extract<WorkerCommand, { type: "send" }>).options),
+      updateToken: () => this.updateToken((cmd as Extract<WorkerCommand, { type: "updateToken" }>).token),
+      disconnect: () => this.disconnect(true)
+    };
+
     try {
-      switch (cmd.type) {
-        case "connect":
-          this.initConnection(cmd);
-          break;
-        case "send":
-          this.send(cmd.payload, cmd.options);
-          break;
-        case "updateToken":
-          this.updateToken(cmd.token);
-          break;
-        case "disconnect":
-          this.disconnect(true);
-          break;
-        default:
-          this.log("warn", "Unknown command", cmd);
+      const handler = commandHandlers[cmd.type];
+      if (!handler) {
+        this.log("warn", "Unknown command", cmd);
+        return;
       }
+      handler();
     } catch (err) {
       this.emit("error", { error: String(err) });
     }
@@ -415,4 +412,3 @@ const Codec = {
 
 new WebSocketWorker(self as any);
 export { };
-

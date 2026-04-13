@@ -231,11 +231,22 @@ export const useMessageStore = defineStore(StoresEnum.MESSAGE, () => {
     return uploadRes;
   };
 
-  const loadMore = () => {
+  let loadingMore = false;
+  const loadMore = async (): Promise<boolean> => {
+    if (loadingMore) return false;
     const chat = chatStore.currentChat;
-    if (!chat) return;
-    page.num++;
-    getMessages(chat);
+    if (!chat) return false;
+    loadingMore = true;
+    try {
+      if (!page.total) await getMessageCount();
+      if (page.num * page.size >= page.total) return false;
+      const beforeLength = state.messageList.length;
+      page.num++;
+      await getMessages(chat);
+      return state.messageList.length > beforeLength;
+    } finally {
+      loadingMore = false;
+    }
   };
 
   const getMessages = async (chat: any) => {

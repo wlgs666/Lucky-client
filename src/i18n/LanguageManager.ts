@@ -166,6 +166,7 @@ export class LanguageManager {
     onProgress?: DownloadProgressCallback
   ): Promise<boolean> {
     try {
+      onProgress?.(0, 1);
       this.logger.info(`开始下载语言包: ${languageMeta.name} (${languageMeta.locale})`);
 
       // 确保 i18n 目录存在
@@ -196,6 +197,7 @@ export class LanguageManager {
 
       // 保存到 AppData
       await this.saveLanguagePack(pack);
+      onProgress?.(1, 1);
 
       this.logger.info(`语言包下载成功: ${languageMeta.name}`);
       return true;
@@ -342,4 +344,3 @@ export class LanguageManager {
 export function useLanguageManager() {
   return LanguageManager.getInstance();
 }
-

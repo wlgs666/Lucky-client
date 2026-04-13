@@ -305,7 +305,7 @@ export function safeValidateData<T>(schema: z.ZodSchema<T>, data: unknown): T | 
  * 创建验证器装饰器工厂
  */
 export function createValidator<T>(schema: z.ZodSchema<T>) {
-  return (data: unknown, fieldName = "data"): T => {
+  return (data: unknown): T => {
     return validateData(schema, data);
   };
 }

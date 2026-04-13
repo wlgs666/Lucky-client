@@ -524,6 +524,7 @@ export const useGroupStore = defineStore(StoresEnum.GROUP, () => {
     };
 
     const applyGroupOperation = (code: number, op: GroupOperationMessageBody): void => {
+        void code;
         if (!op || !op.groupId) return;
 
         const handlers: Record<number, (o: GroupOperationMessageBody) => void> = {

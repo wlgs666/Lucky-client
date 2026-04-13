@@ -1,4 +1,4 @@
-import { ref, reactive, computed, onMounted, onUnmounted, type Ref } from "vue";
+import { ref, reactive, onMounted, onUnmounted, type Ref } from "vue";
 
 // ==================== 类型定义 ====================
 
@@ -530,4 +530,3 @@ export function useAutoCollapse(delay = 2500) {
 }
 
 export default useOcr;
-

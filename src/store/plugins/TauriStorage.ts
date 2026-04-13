@@ -19,7 +19,6 @@ export class TauriStore {
   private pendingWrites: Map<string, any> = new Map(); // 待写入项（包括删除：value === undefined）
   private saveTimer: ReturnType<typeof setTimeout> | null = null; // 防抖定时器
   private savingPromise: Promise<void> | null = null; // 正在写入时的 Promise（用于串行化）
-  private fileName: string = "app-config.dat";
   private debounceMs: number = 200; // 默认防抖时间（可按需改）
 
   // 私有构造函数，外部请使用 create 或 getInstance
@@ -54,7 +53,6 @@ export class TauriStore {
 
     TauriStore._initPromise = (async () => {
       const inst = new TauriStore();
-      inst.fileName = fileName;
       inst.debounceMs = debounceMs;
       // 1) 加载 Store（可能会创建文件）
       inst.store = await Store.load(fileName, options);

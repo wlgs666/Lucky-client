@@ -132,7 +132,7 @@ export class HttpClient {
     }
 
     // 5. 执行超时控制
-    let timer: number | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = this.timeout
       ? new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error("Request timeout")), this.timeout);
@@ -219,4 +219,3 @@ export class HttpClient {
 }
 
 export default HttpClient;
-

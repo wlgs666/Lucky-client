@@ -140,24 +140,18 @@ class ErrorHandler {
       errorInfo.stack = error.stack;
     }
 
-    // 根据错误级别选择日志方法
+    const operationLabel = operation || "未知操作";
     if ("severity" in error) {
       const severity = (error as AppError).severity;
-      switch (severity) {
-        case "critical":
-          this.logger.prettyError("ErrorHandler", `致命错误: ${operation || "未知操作"}`, errorInfo);
-          break;
-        case "high":
-          this.logger.prettyError("ErrorHandler", `严重错误: ${operation || "未知操作"}`, errorInfo);
-          break;
-        case "medium":
-          this.logger.prettyWarn("ErrorHandler", `警告: ${operation || "未知操作"}`, errorInfo);
-          break;
-        default:
-          this.logger.prettyInfo("ErrorHandler", `信息: ${operation || "未知操作"}`, errorInfo);
-      }
+      const severityHandlers: Record<ErrorSeverity, () => void> = {
+        [ErrorSeverity.CRITICAL]: () => this.logger.prettyError("ErrorHandler", `致命错误: ${operationLabel}`, errorInfo),
+        [ErrorSeverity.HIGH]: () => this.logger.prettyError("ErrorHandler", `严重错误: ${operationLabel}`, errorInfo),
+        [ErrorSeverity.MEDIUM]: () => this.logger.prettyWarn("ErrorHandler", `警告: ${operationLabel}`, errorInfo),
+        [ErrorSeverity.LOW]: () => this.logger.prettyInfo("ErrorHandler", `信息: ${operationLabel}`, errorInfo)
+      };
+      severityHandlers[severity]();
     } else {
-      this.logger.prettyError("ErrorHandler", `错误: ${operation || "未知操作"}`, errorInfo);
+      this.logger.prettyError("ErrorHandler", `错误: ${operationLabel}`, errorInfo);
     }
   }
 
@@ -200,7 +194,7 @@ class ErrorHandler {
 
 class ErrorNotification {
   // 防抖 - 避免短时间内弹出大量通知
-  private static notificationDebounce = new Map<string, number>();
+  private static notificationDebounce = new Map<string, ReturnType<typeof setTimeout>>();
   private static readonly DEBOUNCE_TIME: number = 3000; // 3秒内同一错误仅弹一次
 
   /**

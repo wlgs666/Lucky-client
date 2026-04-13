@@ -168,21 +168,6 @@ function calculatePopupPosition(popupWidth = 250, popupHeight = 80) {
   return { x: cx, y: cy };
 }
 
-/** promise 轮询，等待 Window.getByLabel 成功返回（或超时） */
-async function waitForWindowLabel(label: string, timeout = 3000, interval = 100): Promise<Window> {
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    try {
-      const w = await Window.getByLabel(label);
-      if (w) return w;
-    } catch {
-      // getByLabel 可能会抛异常表示不存在，忽略并继续轮询
-    }
-    await new Promise(r => setTimeout(r, interval));
-  }
-  throw new Error("timeout waiting for window label: " + label);
-}
-
 /** 尝试获取窗口，不存在返回 null（对外用） */
 async function tryGetWindowByLabel(label: string): Promise<MaybeWindow> {
   try {

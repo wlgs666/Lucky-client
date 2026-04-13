@@ -35,14 +35,6 @@ const getDpr = () => window.devicePixelRatio || 1;
 /** Convert physical pixel value to CSS/Logical pixel value */
 const toCss = (val: number) => val / getDpr();
 
-/** Convert physical rect to CSS Rect */
-const toCssRect = (rect: { x: number; y: number; width: number; height: number }): Rect => ({
-  x: toCss(rect.x),
-  y: toCss(rect.y),
-  width: toCss(rect.width),
-  height: toCss(rect.height),
-});
-
 /** Normalize possibly mixed/raw tray rect to CSS Rect */
 function normalizeTrayRect(rect: any): Rect | null {
   if (!rect || typeof rect.x !== "number" || typeof rect.y !== "number") return null;

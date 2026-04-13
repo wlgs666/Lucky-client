@@ -1,107 +1,124 @@
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { Window } from "@tauri-apps/api/window";
 import { StoresEnum } from "@/constants/index";
 import { closeWindow, getWindow, showAndFocus } from "@/windows/utils";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { LogicalSize, Window } from "@tauri-apps/api/window";
 
-// 简单 logger（优先使用全局 useLogger，否则退回到 console）
-function logger() {
-  try {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    const l = (globalThis as any).useLogger?.();
-    if (l) return l;
-  } catch (e) {
-    /* ignore */
+const MAIN_WINDOW_LOGIN = {
+  title: "Login",
+  url: "/login",
+  width: 280,
+  height: 400,
+  resizable: false,
+};
+
+const MAIN_WINDOW_MESSAGE = {
+  title: "Lucky",
+  url: "/message",
+  width: 950,
+  height: 650,
+  resizable: true,
+};
+
+type MainWindowMode = "login" | "message";
+
+const getMainWindow = async (): Promise<Window | null> => getWindow(StoresEnum.MAIN);
+
+const getModeConfig = (mode: MainWindowMode) => {
+  return mode === "login" ? MAIN_WINDOW_LOGIN : MAIN_WINDOW_MESSAGE;
+};
+
+const waitForWebviewReady = async (webview: WebviewWindow) => {
+  await new Promise<void>((resolve, reject) => {
+    webview.once("tauri://webview-created", () => resolve());
+    webview.once("tauri://error", error => reject(error));
+  });
+};
+
+const applyMode = async (mainWindow: Window, mode: MainWindowMode) => {
+  const config = getModeConfig(mode);
+  await mainWindow.setTitle(config.title);
+  await mainWindow.setResizable(config.resizable);
+  await mainWindow.setMinSize(new LogicalSize(config.width, config.height));
+  await mainWindow.setSize(new LogicalSize(config.width, config.height));
+  await mainWindow.center();
+  await mainWindow.show();
+  await mainWindow.unminimize();
+  await mainWindow.setFocus();
+};
+
+export async function CreateMainWindow(mode: MainWindowMode = "message") {
+  const existingWindow = await getMainWindow();
+  if (existingWindow) {
+    await applyMode(existingWindow, mode);
+    return;
   }
-  return console;
-}
 
-const log = logger();
-
-export async function CreateMainWindow() {
-  const height = 650; // 初始高度
-  const width = 950; // 初始宽度
+  const config = getModeConfig(mode);
 
   const webview = new WebviewWindow(StoresEnum.MAIN, {
-    title: "Lucky",
-    url: "/message",
-    width: width,
-    height: height,
-    minWidth: width,
-    minHeight: height,
+    title: config.title,
+    url: config.url,
+    width: config.width,
+    height: config.height,
+    minWidth: config.width,
+    minHeight: config.height,
     center: true,
-    resizable: true,
+    resizable: config.resizable,
     decorations: false,
     alwaysOnTop: false,
     visible: true,
     transparent: true,
     shadow: false
-    // resizable: false,
-    // decorations: false,
-    // alwaysOnTop: true,
-    // skipTaskbar: true,
-    // transparent: true,
-    // shadow: false
   });
 
-  webview.once("tauri://webview-created", async () => {
-    try {
-      await webview.show();
-      await webview.setFocus();
-    } catch (error) {
-      log.warn("show/focus main window failed", error);
-    }
-  });
+  try {
+    await waitForWebviewReady(webview);
+    await webview.show();
+    await webview.setFocus();
+  } catch (error) {
+    console.warn("CreateMainWindow failed", error);
+  }
 }
 
-/**
- * 获取主窗口实例，如果缓存中没有则从 API 获取
- */
-const getMainWindow = async (): Promise<Window | null> => getWindow(StoresEnum.MAIN);
+export const SwitchMainWindowToLogin = async () => {
+  const mainWindow = await getMainWindow();
+  if (!mainWindow) return;
+  await applyMode(mainWindow, "login");
+};
 
-/**
- * 关闭主窗口
- */
+export const SwitchMainWindowToMessage = async () => {
+  const mainWindow = await getMainWindow();
+  if (!mainWindow) return;
+  await applyMode(mainWindow, "message");
+};
+
 export const CloseMainWindow = async () => {
   await closeWindow(StoresEnum.MAIN);
 };
 
-/**
- * 显示并恢复主窗口
- */
 export const ShowMainWindow = async () => {
   await showAndFocus(StoresEnum.MAIN);
 };
 
-/**
- * 防截屏
- */
 export const antiScreenshot = async () => {
   const mainWindow = await getMainWindow();
   if (mainWindow) {
     try {
       await mainWindow.setContentProtected(true);
     } catch (e) {
-      log.warn("setContentProtected 可能在某些平台不可用", e);
+      console.warn("setContentProtected 可能在某些平台不可用", e);
     }
   }
 };
 
-/**
- * 判断窗口是否最小化或隐藏
- */
 export const appIsMinimizedOrHidden = async (): Promise<boolean> => {
   try {
     const mainWindow = await getMainWindow();
     if (!mainWindow) return false;
-
-    // 判断窗口是否最小化或不可见（隐藏）
     const isMinimized = await mainWindow.isMinimized();
     const isVisible = await mainWindow.isVisible();
-    // 返回窗口是否最小化或不可见
     return isMinimized || !isVisible;
   } catch (error) {
-    // 错误处理
     console.error("Error checking window minimized or hidden status:", error);
     return false;
   }

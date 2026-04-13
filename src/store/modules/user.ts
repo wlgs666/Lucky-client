@@ -3,11 +3,11 @@ import defaultImg from "@/assets/avatar/default.jpg";
 import { StoresEnum } from "@/constants";
 import useCrypto from "@/hooks/useCrypto";
 import { useWebSocketWorker } from "@/hooks/useWebSocketWorker";
+import router from "@/router";
 import { safeExecute, ValidationError } from "@/utils/ExceptionHandler";
 import { storage } from "@/utils/Storage";
 import tokenManager from "@/utils/TokenManager"; // 导入刚才优化的管理器
-import { HideLoginWindow, ShowLoginWindow } from "@/windows/login";
-import { CloseMainWindow, CreateMainWindow } from "@/windows/main";
+import { CreateMainWindow, SwitchMainWindowToLogin, SwitchMainWindowToMessage } from "@/windows/main";
 import { ElMessage } from "element-plus";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
@@ -27,20 +27,6 @@ interface UserInfo {
   name?: string;
   nickname?: string;
   [key: string]: any;
-}
-
-interface AuthRefreshTokenResult {
-  userId: string;
-  accessToken: string;
-}
-
-
-interface LoginResponse {
-  accessToken: string;
-  refreshToken: string;
-  userId: string;
-  accessExpiresAt: number;
-  refreshExpiresAt?: number;
 }
 
 // ==================== Store ====================
@@ -252,18 +238,23 @@ export const useUserStore = defineStore(StoresEnum.USER, () => {
     wsDestroy();
   };
 
+  const navigateTo = async (path: string) => {
+    if (router.currentRoute.value.path === path) return;
+    await router.push(path);
+  };
+
   /** 窗口切换：登录 -> 主窗口 */
   const switchWindowToMain = async () => {
-    // 技巧：先创建主窗口，准备好后再隐藏登录窗口，避免闪烁
-    await CreateMainWindow();
-    // 可选：在这里发送事件给主窗口通知它加载数据
-    HideLoginWindow(); // 不 await，让其在后台关闭
+    await navigateTo("/message");
+    await CreateMainWindow("message");
+    await SwitchMainWindowToMessage();
   };
 
   /** 窗口切换：主窗口 -> 登录 */
   const switchWindowToLogin = async () => {
-    await ShowLoginWindow();
-    CloseMainWindow(); // 不 await
+    await navigateTo("/login");
+    await CreateMainWindow("login");
+    await SwitchMainWindowToLogin();
   };
 
   return {

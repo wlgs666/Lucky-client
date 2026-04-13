@@ -29,7 +29,7 @@ export function useTray() {
   const log = useLogger();
 
   const trayIcon = shallowRef<TrayIcon | null>(null); // 当前托盘对象
-  const flashTimer = ref<any>(null); // 闪烁定时器
+  const flashTimer = ref<ReturnType<typeof setInterval> | null>(null); // 闪烁定时器
   const hasIcon = ref(false); // 当前是否显示 icon
   const config = ref<TrayConfig | null>(); // 托盘配置
 
@@ -102,19 +102,15 @@ export function useTray() {
    */
   function handleTrayEvent(event: TrayIconEvent) {
     const { type } = event;
-    switch (type) {
-      case "Click":
-        config.value?.trayClick?.(event);
-        break;
-      case "Enter":
-        config.value?.trayEnter?.(event);
-        break;
-      case "Move":
-        config.value?.trayMove?.(event);
-        break;
-      case "Leave":
-        config.value?.trayLeave?.(event);
-        break;
+    const handlers: Partial<Record<typeof type, () => void>> = {
+      Click: () => config.value?.trayClick?.(event),
+      Enter: () => config.value?.trayEnter?.(event),
+      Move: () => config.value?.trayMove?.(event),
+      Leave: () => config.value?.trayLeave?.(event)
+    };
+    const handler = handlers[type];
+    if (handler) {
+      handler();
     }
   }
 

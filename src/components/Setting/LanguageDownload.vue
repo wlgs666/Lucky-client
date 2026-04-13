@@ -116,7 +116,7 @@ import { computed, ref } from "vue";
   const downloadProgress = ref<Record<string, number>>({});
 
   const languageManager = useLanguageManager();
-  const { loadLocaleOptions, setLocale } = useI18n();
+  const { loadLocaleOptions } = useI18n();
 
   /**
    * 合并可用语言和已安装语言，生成 UI 数据
@@ -364,4 +364,3 @@ import { computed, ref } from "vue";
     }
   }
 </style>
-

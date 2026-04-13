@@ -42,7 +42,7 @@
           <strong>{{ $t("pages.settings.about.update.newVersion") }}:</strong> {{ updateInfo.version }}
         </p>
         <p>
-          <strong>{{ $t("pages.settings.about.update.releaseDate") }}:</strong> {{ formatDate(new Date(updateInfo.date), "yyyy-MM-dd") }}
+          <strong>{{ $t("pages.settings.about.update.releaseDate") }}:</strong> {{ updateInfo.date ? formatDate(new Date(updateInfo.date), "yyyy-MM-dd") : "--" }}
         </p>
         <p>
           <strong>{{ $t("pages.settings.about.update.releaseNotes") }}:</strong>

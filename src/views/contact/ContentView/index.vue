@@ -87,5 +87,9 @@ async function loadPlugin(manifestUrl: string) {
   return el;
 }
 
+defineExpose({
+  loadPlugin,
+});
+
 // use: loadPlugin('plugins/example/manifest.json');
 </script>

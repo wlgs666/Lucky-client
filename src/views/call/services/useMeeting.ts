@@ -316,25 +316,29 @@ export default function useMeeting(options: { callStore: any; userStore: any }) 
   function handleServerMessage(evt: MessageEvent) {
     try {
       const msg = JSON.parse(evt.data);
-      switch (msg.type) {
-        case "join":
+      const messageHandlers: Record<string, () => void> = {
+        join: () => {
           if (Array.isArray(msg.users)) {
             for (const u of msg.users) {
               if (u) handleUserJoin(u);
             }
           }
-          break;
-        case "leave":
+        },
+        leave: () => {
           handleUserLeave(msg.userId);
-          break;
-        case "update":
+        },
+        update: () => {
           upsertParticipant(msg.user);
-          break;
-        case "signal":
+        },
+        signal: () => {
           messages.value.push({ userId: msg.userId, body: msg.body });
-          break;
-        default:
-          console.debug("unknown ws message:", msg);
+        }
+      };
+      const handler = messageHandlers[msg.type];
+      if (handler) {
+        handler();
+      } else {
+        console.debug("unknown ws message:", msg);
       }
     } catch (err) {
       console.error("parse ws message failed:", err);

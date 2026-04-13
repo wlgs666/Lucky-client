@@ -68,16 +68,6 @@ export const DEFAULT_FILE_TYPES: FileEnum[] = [
 ];
 
 /**
- * 下载进度回调参数
- */
-interface ProgressPayload {
-  progress: number;
-  progressTotal: number;
-  total: number;
-  transferSpeed: number;
-}
-
-/**
  * 扩展名到枚举映射
  */
 const extensionEnumMap: Record<string, FileEnum> = Object.values(FileEnum).reduce((map, fileEnum) => {
@@ -385,6 +375,8 @@ export function useFile() {
    * @returns 成功时返回本地路径，否则返回 undefined
    */
   async function autoDownloadFile(name: string, path: string, size: number): Promise<string | undefined> {
+    void name;
+    void path;
     // 200MB 限制
     const MAX_SIZE = 200 * 1024 * 1024;
 

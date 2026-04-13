@@ -5,23 +5,13 @@
       <el-row :gutter="20" align="middle">
         <el-col :span="6">
           <div class="avatar-section">
-            <el-upload
-              ref="uploadRef"
-              :before-upload="handleFileChange"
-              :on-success="handleAvatarSuccess"
-              :show-file-list="false"
-              accept="image/*"
-              class="avatar-uploader"
-            >
+            <el-upload ref="uploadRef" :before-upload="handleFileChange" :on-success="handleAvatarSuccess"
+              :show-file-list="false" accept="image/*" class="avatar-uploader">
               <div class="avatar-wrap">
                 <!-- 统一使用封装的头像组件 -->
                 <div class="avatar-img">
-                  <Avatar
-                    :avatar="userAvatar"
-                    :name="profileForm.name || userStore.userInfo?.name"
-                    :width="100"
-                    :borderRadius="8"
-                  />
+                  <Avatar :avatar="userAvatar" :name="profileForm.name || userStore.userInfo?.name" :width="100"
+                    :borderRadius="8" />
                   <!-- 覆盖层图标：在 avatar 上方显示 -->
                   <div class="avatar-mask" title="更换头像">
                     <!-- 如果你使用 Element Plus 图标组件（推荐），请在 script 中 import 并用 <el-icon> 包裹 -->
@@ -42,14 +32,8 @@
           </el-form-item>
 
           <el-form-item :label="$t('business.profile.fields.birthday')">
-            <el-date-picker
-              v-model="profileForm.birthday"
-              :clearable="true"
-              date-format="yyyy-MM-dd"
-              :placeholder="$t('business.profile.placeholder.birthday')"
-              placement="bottom-start"
-              type="date"
-            />
+            <el-date-picker v-model="profileForm.birthday" :clearable="true" date-format="yyyy-MM-dd"
+              :placeholder="$t('business.profile.placeholder.birthday')" placement="bottom-start" type="date" />
           </el-form-item>
 
           <el-form-item :label="$t('business.profile.fields.sex.label')">
@@ -72,13 +56,8 @@
           </el-form-item>
 
           <el-form-item :label="$t('business.profile.fields.signature')">
-            <el-input
-              v-model="profileForm.selfSignature"
-              :placeholder="$t('business.profile.placeholder.signature')"
-              :rows="2"
-              resize="none"
-              type="textarea"
-            />
+            <el-input v-model="profileForm.selfSignature" :placeholder="$t('business.profile.placeholder.signature')"
+              :rows="2" resize="none" type="textarea" />
           </el-form-item>
         </el-col>
 
@@ -96,140 +75,162 @@
 </template>
 
 <script lang="ts" setup>
-  import Avatar from "@/components/Avatar/index.vue";
+import Avatar from "@/components/Avatar/index.vue";
 import { useUserStore } from "@/store/modules/user";
 import { Camera } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 
-  const userStore = useUserStore();
-  const userAvatar = ref("");
-  const uploadRef = ref();
+const userStore = useUserStore();
+const userAvatar = ref("");
+const uploadRef = ref();
+const getAvatarPath = (value: unknown): string | undefined => {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const path = (value as { path?: unknown }).path;
+  return typeof path === "string" ? path : undefined;
+};
 
-  // 表单数据
-  const profileForm = ref({
-    name: "",
-    gender: 1,
-    birthday: "",
-    location: "",
-    phone: "",
-    selfSignature: ""
-  });
+// 表单数据
+const profileForm = ref({
+  name: "",
+  gender: 1,
+  birthday: "",
+  location: "",
+  phone: "",
+  selfSignature: ""
+});
 
-  const handleAvatarSuccess = () => {
-    uploadRef.value.submit();
-  };
+const handleAvatarSuccess = () => {
+  uploadRef.value.submit();
+};
 
-  // 上传文件
-  const handleFileChange = async (file: File) => {
-    if (file.size > 1024 * 1024 * 2) {
-      ElMessage.error("上传头像图片大小不能超过 2MB");
-      return false;
-    }
-    if (file.type.indexOf("image") === -1) {
-      ElMessage.error("请上传图片");
-      return false;
-    }
-    userAvatar.value = URL.createObjectURL(file);
-    if (file) {
-      const { path } = await userStore.uploadUserAvatar(file);
-      userAvatar.value = path;
-    }
+// 上传文件
+const handleFileChange = async (file: File) => {
+  if (file.size > 1024 * 1024 * 2) {
+    ElMessage.error("上传头像图片大小不能超过 2MB");
     return false;
-  };
+  }
+  if (file.type.indexOf("image") === -1) {
+    ElMessage.error("请上传图片");
+    return false;
+  }
+  userAvatar.value = URL.createObjectURL(file);
+  const res = await userStore.uploadAvatar(file);
+  const path = getAvatarPath(res);
+  if (path) {
+    userAvatar.value = path;
+  }
+  return false;
+};
 
-  // 提交表单
-  const handleSubmit = async () => {
-    try {
-      // 更新用户信息
-      await userStore.updateUserInfo({
-        ...profileForm.value,
-        avatar: userAvatar.value || userStore.userInfo.avatar
-      });
-      ElMessage.success("个人信息更新成功");
-    } catch (error) {
-      ElMessage.error("更新失败，请重试");
-    }
-  };
+// 提交表单
+const handleSubmit = async () => {
+  try {
+    // 更新用户信息
+    await userStore.updateUserInfo({
+      ...profileForm.value,
+      avatar: userAvatar.value || userStore.userInfo.avatar
+    });
+    ElMessage.success("个人信息更新成功");
+  } catch (error) {
+    ElMessage.error("更新失败，请重试");
+  }
+};
 
-  const init = () => {
-    profileForm.value = Object.assign({}, userStore.userInfo);
-    userAvatar.value = userStore.userInfo.avatar as string;
+const init = () => {
+  profileForm.value = {
+    name: userStore.userInfo?.name ?? "",
+    gender: Number(userStore.userInfo?.gender ?? 1),
+    birthday: String(userStore.userInfo?.birthday ?? ""),
+    location: String(userStore.userInfo?.location ?? ""),
+    phone: String(userStore.userInfo?.phone ?? ""),
+    selfSignature: String(userStore.userInfo?.selfSignature ?? "")
   };
+  userAvatar.value = (userStore.userInfo?.avatar as string) ?? "";
+};
 
-  // 初始化表单数据
-  onMounted(() => {
-    init();
-  });
+// 初始化表单数据
+onMounted(() => {
+  init();
+});
 </script>
 
 <style lang="scss" scoped>
-  .profile-container {
-    padding: 15px 5px;
+.profile-container {
+  padding: 15px 5px;
 
-    .avatar-section {
-      text-align: center;
-      margin-bottom: 8px;
+  .avatar-section {
+    text-align: center;
+    margin-bottom: 8px;
 
-      .el-avatar {
-        cursor: pointer;
-      }
-    }
-
-    .profile-form {
-      max-width: 500px;
-      margin: 0 auto;
-    }
-
-    .avatar-wrap {
-      position: relative;
-      width: 100px;
-      height: 100px;
-      display: inline-block;
-      padding-left: 25px;
-    }
-    .avatar-img {
-      position: absolute;
-      width: 100%;
-      border-radius: 8px;
-      overflow: hidden;
-    }
-
-    .avatar-wrap {
-      position: relative;
-      width: 100px;
-      height: 100px;
-      border-radius: 8px; /* 保持和 Avatar 组件一致的圆角 */
-      overflow: hidden; /* 确保蒙层不溢出 */
-
-      /* 鼠标悬停时触发蒙层显示 */
-      &:hover .avatar-mask {
-        opacity: 1;
-      }
-    }
-
-    /* 蒙层样式设计 */
-    .avatar-mask {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.6); /* 黑色半透明背景 */
-      backdrop-filter: blur(1px); /* 可选：轻微的高斯模糊效果 */
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      color: #fff;
-      opacity: 0; /* 默认隐藏 */
-      transition: all 0.3s ease; /* 丝滑过渡动画 */
-      z-index: 10;
-
-      .camera-icon {
-        font-size: 20px;
-        margin-bottom: 2px;
-        margin-right: 26px;
-      }
+    .el-avatar {
+      cursor: pointer;
     }
   }
+
+  .profile-form {
+    max-width: 500px;
+    margin: 0 auto;
+  }
+
+  .avatar-wrap {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    display: inline-block;
+    padding-left: 25px;
+  }
+
+  .avatar-img {
+    position: absolute;
+    width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .avatar-wrap {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    border-radius: 8px;
+    /* 保持和 Avatar 组件一致的圆角 */
+    overflow: hidden;
+    /* 确保蒙层不溢出 */
+
+    /* 鼠标悬停时触发蒙层显示 */
+    &:hover .avatar-mask {
+      opacity: 1;
+    }
+  }
+
+  /* 蒙层样式设计 */
+  .avatar-mask {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    /* 黑色半透明背景 */
+    backdrop-filter: blur(1px);
+    /* 可选：轻微的高斯模糊效果 */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    opacity: 0;
+    /* 默认隐藏 */
+    transition: all 0.3s ease;
+    /* 丝滑过渡动画 */
+    z-index: 10;
+
+    .camera-icon {
+      font-size: 20px;
+      margin-bottom: 2px;
+      margin-right: 26px;
+    }
+  }
+}
 </style>

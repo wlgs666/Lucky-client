@@ -234,8 +234,6 @@ const flatList = computed(() => {
   return arr;
 });
 
-const hasAnyResult = computed(() => friends.value.length + messages.value.length > 0);
-
 /* -------------------- 搜索逻辑 -------------------- */
 async function performSearch(query: string) {
   const trimmed = (query ?? "").trim();

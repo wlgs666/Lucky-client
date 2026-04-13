@@ -31,7 +31,6 @@ export function useFFmpeg(options: UseFFmpegOptions = {}) {
   const logEnabled = !!options.log;
   const defaultFps = options.defaultFps ?? 30;
   const defaultPreset = options.defaultPreset ?? "veryfast";
-  const preferGracefulStop = options.preferGracefulStop ?? true;
 
   // 状态
   const loading = ref(false);

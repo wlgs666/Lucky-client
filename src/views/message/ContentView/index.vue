@@ -53,6 +53,7 @@ const topRef = ref<HTMLElement | null>(null);
 const bottomRef = ref<HTMLElement | null>(null);
 const inputRef = ref<InstanceType<typeof InputView> | null>(null);
 const effectsRef = ref();
+const promiseTry = <T>(fn: () => T | Promise<T>) => Promise.resolve().then(fn);
 
 // 处理 trigger 事件（来自 InputView）
 function onTrigger() {
@@ -90,9 +91,7 @@ function scheduleEffectsResize() {
   if (resizeRaf !== null) return;
   resizeRaf = requestAnimationFrame(() => {
     resizeRaf = null;
-    try {
-      effectsRef.value?.updateSize?.();
-    } catch { }
+    void promiseTry(() => effectsRef.value?.updateSize?.()).catch(() => undefined);
   });
 }
 
@@ -129,9 +128,7 @@ function onDragEnd() {
     cancelAnimationFrame(resizeRaf);
     resizeRaf = null;
   }
-  try {
-    effectsRef.value?.updateSize?.();
-  } catch { }
+  void promiseTry(() => effectsRef.value?.updateSize?.()).catch(() => undefined);
 }
 
 onBeforeUnmount(() => {

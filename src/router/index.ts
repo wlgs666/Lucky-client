@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
-import { storage } from "@/utils/Storage";
 
 /**
  * 扩展路由记录类型

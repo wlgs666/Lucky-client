@@ -84,6 +84,7 @@ const isOwner = (item: MessageItem) =>
   typeof item.isOwner === "boolean" ? item.isOwner : String(item.fromId) === String(storage.get("userId"));
 
 const canRecall = (item: MessageItem) => !!item.messageTime && Date.now() - item.messageTime <= recallWindowMs;
+const promiseTry = <T>(fn: () => T | Promise<T>) => Promise.resolve().then(fn);
 
 const handleDelete = async (target: MessageItem) => {
   await ElMessageBox.confirm(
@@ -111,6 +112,16 @@ const handleCopy = async (target: MessageItem) => {
   logger.prettySuccess("Image copied", target.messageBody?.key);
 };
 
+const actionHandlers: Record<string, (target: MessageItem) => void | Promise<void>> = {
+  reply: (target) => handleReply(target),
+  copy: (target) => handleCopy(target),
+  saveAs: (target) => handleSaveAs(target),
+  delete: (target) => handleDelete(target),
+  recall: (target) => {
+    globalEventBus.emit(Events.MESSAGE_RECALL, target);
+  }
+};
+
 const { menuConfig, setTarget } = useMessageContextMenu<typeof props.message>({
   getOptions: (item) => {
     const target = item ?? props.message;
@@ -127,27 +138,9 @@ const { menuConfig, setTarget } = useMessageContextMenu<typeof props.message>({
   },
   onAction: async (action, item) => {
     const target = item ?? props.message;
-    try {
-      if (action === "reply") {
-        handleReply(target);
-        return;
-      }
-      if (action === "copy") {
-        await handleCopy(target);
-        return;
-      }
-      if (action === "saveAs") {
-        await handleSaveAs(target);
-        return;
-      }
-      if (action === "delete") {
-        await handleDelete(target);
-        return;
-      }
-      if (action === "recall") {
-        globalEventBus.emit(Events.MESSAGE_RECALL, target);
-      }
-    } catch { }
+    const handler = actionHandlers[action];
+    if (!handler) return;
+    await promiseTry(() => handler(target)).catch(() => undefined);
   },
   beforeShow: () => setTarget(props.message)
 });
@@ -171,9 +164,11 @@ const fetchImageInfo = async () => {
     return;
   }
   try {
-    const res = await API.getMediaPresignedPutUrl({ identifier: key }) as { path?: string; thumbPath?: string };
+    const res = await promiseTry(() => API.getImagePresignedPutUrl({ identifier: key })) as {
+      path?: string;
+      thumbPath?: string;
+    };
     if (lastRequestedKey !== key) return;
-    logger.prettyInfo("聊天图片加载", res)
     previewUrl.value = res.path || "";
     imageUrl.value = res.thumbPath || res.path || "";
   } catch (error) {

@@ -583,7 +583,7 @@ class IMessageAction<T extends MessageBody = MessageBody> extends IMessage<T> {
 
 
 /** 群操作（messageType = MESSAGE_OPERATION） */
-class IMGroupAction<T extends MessageBody = MessageBody> extends IMessage<T> {
+export class IMGroupAction<T extends MessageBody = MessageBody> extends IMessage<T> {
   toList?: string[];
   groupId?: string;
   messageType: number;
@@ -718,4 +718,3 @@ export {
 };
 
 export type { IMessagePart };
-

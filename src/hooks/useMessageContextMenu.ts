@@ -2,12 +2,6 @@ import { computed, ref } from "vue";
 
 export type ContextMenuOption = { label: string; value: string };
 
-type ContextMenuConfig = {
-  getOptions: (target: unknown | null) => ContextMenuOption[];
-  onAction: (action: string, target: unknown | null) => void | Promise<void>;
-  beforeShow?: () => void;
-};
-
 /**
  * 统一的右键菜单 Hook
  * - 统一管理菜单目标

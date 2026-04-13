@@ -255,33 +255,31 @@ const handleKeyDown = (e: KeyboardEvent) => {
     return;
   }
 
-  switch (e.key) {
-    case "ArrowDown":
+  const keyHandlers: Record<string, () => void> = {
+    ArrowDown: () => {
       e.preventDefault();
       e.stopPropagation();
       highlightIndex.value = (highlightIndex.value + 1) % len;
       scrollActiveIntoView();
-      break;
-
-    case "ArrowUp":
+    },
+    ArrowUp: () => {
       e.preventDefault();
       e.stopPropagation();
       highlightIndex.value = (highlightIndex.value - 1 + len) % len;
       scrollActiveIntoView();
-      break;
-
-    case "Enter":
+    },
+    Enter: () => {
       e.preventDefault();
       e.stopPropagation();
       selectCurrentItem();
-      break;
-
-    case "Escape":
+    },
+    Escape: () => {
       e.preventDefault();
       e.stopPropagation();
       emit("handleHide");
-      break;
-  }
+    }
+  };
+  keyHandlers[e.key]?.();
 };
 
 // ==================== 选择逻辑 ====================

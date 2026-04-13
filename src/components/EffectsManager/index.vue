@@ -187,7 +187,6 @@ function generateXPositions(targetCount: number, pad: number, usableW: number, m
   const xs: number[] = [];
   for (let k = 0; k < targetCount; k++) {
     const size = sizes[k] ?? 18;
-    let accepted = false;
     for (let attempt = 0; attempt < 40; attempt++) {
       const x = Math.round(pad + Math.random() * Math.max(0, usableW - size));
       let ok = true;
@@ -199,7 +198,6 @@ function generateXPositions(targetCount: number, pad: number, usableW: number, m
       }
       if (ok) {
         xs.push(x);
-        accepted = true;
         break;
       }
     }

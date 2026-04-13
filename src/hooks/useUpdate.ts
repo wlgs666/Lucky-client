@@ -16,9 +16,10 @@ import { useLogger } from "./useLogger";
 export function useUpdate() {
   // 日志
   const log = useLogger();
+  const promiseTry = <T>(fn: () => T | Promise<T>) => Promise.resolve().then(fn);
 
   // 更新信息响应式存储
-  const updateInfo = ref<any | Update | null>(null);
+  const updateInfo = ref<Update | null>(null);
 
   /**
    * 检查远程更新
@@ -29,9 +30,12 @@ export function useUpdate() {
     try {
       //const platform = appPlatform();
       // 发起检查请求
-      const result: any = await check({ headers: { Platform: "windows-x86_64" } });
+      const result = await check({ headers: { Platform: "windows-x86_64" } });
       updateInfo.value = result;
       log.info("检查更新结果:", result);
+      if (!result) {
+        return false;
+      }
       // 检查版本号是否大于当前版本
       const current = await getVersion();
       return shouldUpdate(current, { version: result.version });
@@ -50,22 +54,27 @@ export function useUpdate() {
     //   console.warn("未发现更新或未执行检查");
     //   return;
     // }
-    const result: any = await check({ headers: { Platform: "windows-x86_64" } });
+    const result = updateInfo.value ?? await check({ headers: { Platform: "windows-x86_64" } });
+    updateInfo.value = result;
+    if (!result) {
+      log.info("当前已是最新版本");
+      return;
+    }
     try {
       // 使用 downloadAndInstall 简化下载+安装流程，并监听进度事件
-      await result.downloadAndInstall((event: DownloadEvent) => {
-        switch (event.event) {
-          case "Started":
-            log.info(`开始下载，总大小: ${event.data.contentLength}`);
-            break;
-          case "Progress":
-            log.info(`已下载: ${event.data.chunkLength}`);
-            break;
-          case "Finished":
-            log.info("下载完成");
-            break;
+      await promiseTry(() => result.downloadAndInstall((event: DownloadEvent) => {
+        if (event.event === "Started") {
+          log.info(`开始下载，总大小: ${event.data.contentLength}`);
+          return;
         }
-      });
+        if (event.event === "Progress") {
+          log.info(`已下载: ${event.data.chunkLength}`);
+          return;
+        }
+        if (event.event === "Finished") {
+          log.info("下载完成");
+        }
+      }));
       log.info("更新安装完成");
       if (autoRelaunch) {
         await relaunch();
@@ -116,4 +125,3 @@ function compareVersion(v1: string, v2: string): -1 | 0 | 1 {
   }
   return 0;
 }
-

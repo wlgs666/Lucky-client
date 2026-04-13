@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Image } from "@tauri-apps/api/image";
 import { clear, readImage, readText, writeHtml, writeImage, writeText } from "@tauri-apps/plugin-clipboard-manager";
+
+type ClipboardImage = Awaited<ReturnType<typeof readImage>>;
+type ClipboardImagePayload = Parameters<typeof writeImage>[0];
 
 /**
  * ClipboardManager 工具类
@@ -43,7 +45,7 @@ export default class ClipboardManager {
    * @param image 图像数据，可以是 base64 字符串、Image 对象、Uint8Array、ArrayBuffer 或 number 数组
    * @throws 写入失败时抛出错误
    */
-  static async writeImage(image: string | Image | Uint8Array | ArrayBuffer | number[]): Promise<void> {
+  static async writeImage(image: ClipboardImagePayload): Promise<void> {
     try {
       await writeImage(image);
     } catch (error) {
@@ -73,7 +75,7 @@ export default class ClipboardManager {
    * @returns 包含字节数据和元信息的 Image 对象
    * @throws 读取失败时抛出错误
    */
-  static async readImage(): Promise<Image> {
+  static async readImage(): Promise<ClipboardImage> {
     try {
       return await readImage();
     } catch (error) {

@@ -24,16 +24,6 @@ interface Friend {
   selfSignature?: string;
 }
 
-// 定义状态接口
-interface State {
-  contacts: any[];
-  groups: any[];
-  shipInfo: any;
-  newFriends: any[];
-  type: "contacts" | "groups" | "newFriends" | "";
-  ignore: boolean;
-}
-
 // 使用 setup 语法重构 Pinia store
 export const useFriendsStore = defineStore(StoresEnum.FRIENDS, () => {
   // 初始化其他 stores
@@ -49,6 +39,7 @@ export const useFriendsStore = defineStore(StoresEnum.FRIENDS, () => {
   const shipInfo = ref<any>({});
   const type = ref<"contacts" | "groups" | "newFriends" | "">("contacts");
   const ignore = ref<boolean>(false);
+  const promiseTry = <T>(fn: () => T | Promise<T>) => Promise.resolve().then(fn);
 
   // Getters
   /**
@@ -313,13 +304,13 @@ export const useFriendsStore = defineStore(StoresEnum.FRIENDS, () => {
 
     await api.updateFriendRemark({ fromId: getOwnerId.value, toId: friendId, remark: next });
 
-    try {
+    await promiseTry(async () => {
       const idx = contacts.value.findIndex((c: any) => c?.friendId === friendId);
       if (idx !== -1) contacts.value[idx].remark = next;
       if (shipInfo.value && shipInfo.value.friendId === friendId) shipInfo.value.remark = next;
-    } catch { }
+    }).catch(() => undefined);
 
-    try {
+    await promiseTry(async () => {
       const idx = chatMessageStore.chatList.findIndex(
         (c: any) => c?.chatType === MessageType.SINGLE_MESSAGE.code && String(c?.toId) === String(friendId)
       );
@@ -334,24 +325,25 @@ export const useFriendsStore = defineStore(StoresEnum.FRIENDS, () => {
         chatMessageStore.currentChat.chatType === MessageType.SINGLE_MESSAGE.code &&
         String(chatMessageStore.currentChat.toId) === String(friendId)
       ) {
-        (chatMessageStore.currentChat as any).name = next;
-        try {
+        const currentChat = chatMessageStore.currentChat;
+        (currentChat as any).name = next;
+        await promiseTry(() => {
           globalEventBus.emit(Events.CHAT_CHANGED as any, {
-            chatId: chatMessageStore.currentChat.chatId,
+            chatId: currentChat.chatId,
             name: next,
-            notification: (chatMessageStore.currentChat as any)?.notification
+            notification: (currentChat as any)?.notification
           });
-        } catch { }
+        }).catch(() => undefined);
       }
-    } catch { }
+    }).catch(() => undefined);
 
-    try {
+    await promiseTry(() => {
       globalEventBus.emit(Events.FRIEND_REMARK_UPDATED as any, { friendId, remark: next } as any);
-    } catch { }
+    }).catch(() => undefined);
 
-    try {
+    await promiseTry(async () => {
       await friendsMapper.updateById(friendId, { remark: next } as any);
-    } catch { }
+    }).catch(() => undefined);
   };
 
   /**

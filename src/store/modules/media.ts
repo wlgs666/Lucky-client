@@ -16,12 +16,6 @@ import { logger } from "@/hooks/useLogger";
  * - 使用 inflightPromises 避免并发重复下载同一资源
  */
 
-interface State {
-  mediaMap: Record<string, string>;
-  storage: TauriStore | null;
-  targetId: string | null;
-}
-
 const inflightPromises = new Map<string, Promise<string>>(); // 并发去重
 
 function safeBase64(input: string) {

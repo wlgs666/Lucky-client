@@ -99,14 +99,6 @@ const macIconHtml = "#icon-mac_top_rhover";
 /** 是否展示关闭图标（基于 showClose prop） */
 const showCloseIcon = computed(() => props.showClose);
 
-/** 判断用户传入的 closeIcon 是否是组件 */
-const isComponentIcon = computed(() => {
-  return !!props.closeIcon;
-});
-
-/** 如果用户传入字符串 HTML，则使用它（优先级低于组件） */
-const closeIconHtml = computed(() => props.closeIconHtml);
-
 /** 点击关闭图标时的处理：尊重 beforeClose，如果没有则直接关闭 */
 function onCloseClick() {
   // 如果 el-dialog 本身传入了 beforeClose，会由 el-dialog 调用；但我们也要处理
@@ -131,14 +123,6 @@ function onCloseClick() {
   }
 }
 
-/** 把 beforeClose 透传给 el-dialog（如果用户传入） */
-function handleBeforeClose(done: () => void) {
-  if (props.beforeClose) {
-    (props.beforeClose as any)(done);
-  } else {
-    done();
-  }
-}
 </script>
 
 <style lang="scss" scoped>

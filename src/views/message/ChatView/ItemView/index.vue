@@ -86,10 +86,6 @@ import { computed } from "vue";
     data: Partial<ChatData>;
   }>();
 
-  const emit = defineEmits<{
-    (e: "click"): void;
-  }>();
-
   /* -------------------- 计算属性 -------------------- */
 
   // 是否显示时间

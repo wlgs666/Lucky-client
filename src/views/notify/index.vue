@@ -4,7 +4,7 @@
       <div class="title">{{ $t("business.notification.newMessages", { count: totalNumber }) }}</div>
 
       <div v-if="chatStore.getHaveMessageChat.length" class="list-div">
-        <div v-for="(item, index) in chatStore.getHaveMessageChat" :key="item.name" class="list-item"
+        <div v-for="item in chatStore.getHaveMessageChat" :key="item.name" class="list-item"
           @click="onRead(item)">
           <el-row height="48" style="width: 100%">
             <el-col :span="6">
@@ -66,11 +66,6 @@ function handleIgnoreAll() {
   hideNotifyWindow();
 }
 
-// 组件挂载时执行
-onMounted(() => {
-  //createListDom()
-  //updateTitleNumber()
-});
 </script>
 
 <style lang="scss" scoped>

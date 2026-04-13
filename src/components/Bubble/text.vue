@@ -87,13 +87,13 @@ const chatStore = useChatStore();
 
 const RECALL_TIME_LIMIT = Number(import.meta.env.VITE_MESSAGE_RECALL_TIME) || 120000;
 const URL_SCHEMES = ["https://", "http://", "ftp://", "ftps://"] as const;
+const promiseTry = <T>(fn: () => T | Promise<T>) => Promise.resolve().then(fn);
 
 // ===================== 链接预览状态 =====================
 
 const linkMeta = ref<LinkMeta | null>(null);
 const isLinkLoading = ref(false);
 const iconFailed = ref(false);
-const previewFailed = ref(false);
 
 // ===================== 计算属性 =====================
 
@@ -128,6 +128,25 @@ const canRecall = computed(() => {
   return elapsed >= 0 && elapsed <= RECALL_TIME_LIMIT;
 });
 
+const actionHandlers: Record<string, (msg: Message) => void | Promise<void>> = {
+  reply: (msg) => handleReply(msg),
+  forward: (msg) => handleForward(msg),
+  copy: (msg) => handleCopy(msg),
+  copyLink: async () => {
+    const url = linkMeta.value?.url;
+    if (!url) return;
+    await ClipboardManager.writeText(url);
+    useLogger().prettySuccess("copy link success", url);
+  },
+  recall: (msg) => {
+    globalEventBus.emit(Events.MESSAGE_RECALL, msg);
+  },
+  delete: async (msg) => {
+    await confirmDelete(msg);
+    globalEventBus.emit(Events.MESSAGE_DELETE, msg);
+  }
+};
+
 // ===================== 右键菜单 =====================
 const { menuConfig, setTarget } = useMessageContextMenu<Message>({
   getOptions: () => {
@@ -150,37 +169,9 @@ const { menuConfig, setTarget } = useMessageContextMenu<Message>({
   },
   onAction: async (action, target) => {
     const msg = target ?? props.message;
-    try {
-      if (action === "reply") {
-        handleReply(msg);
-        return;
-      }
-      if (action === "forward") {
-        handleForward(msg);
-        return;
-      }
-      if (action === "copy") {
-        await handleCopy(msg);
-        return;
-      }
-      if (action === "copyLink") {
-        if (linkMeta.value?.url) {
-          await ClipboardManager.writeText(linkMeta.value.url);
-          useLogger().prettySuccess("copy link success", linkMeta.value.url);
-        }
-        return;
-      }
-      if (action === "recall") {
-        globalEventBus.emit(Events.MESSAGE_RECALL, msg);
-        return;
-      }
-      if (action === "delete") {
-        await confirmDelete(msg);
-        globalEventBus.emit(Events.MESSAGE_DELETE, msg);
-      }
-    } catch {
-      // 用户取消或操作失败
-    }
+    const handler = actionHandlers[action];
+    if (!handler) return;
+    await promiseTry(() => handler(msg)).catch(() => undefined);
   },
   beforeShow: () => setTarget(props.message)
 });
@@ -214,7 +205,6 @@ const loadLinkPreview = async () => {
 
   isLinkLoading.value = true;
   iconFailed.value = false;
-  previewFailed.value = false;
 
   try {
     linkMeta.value = await fetchLinkMeta(rawText.value);
@@ -233,11 +223,6 @@ onMounted(loadLinkPreview);
 
 const onIconError = (e: Event) => {
   iconFailed.value = true;
-  (e.target as HTMLImageElement).style.display = "none";
-};
-
-const onPreviewError = (e: Event) => {
-  previewFailed.value = true;
   (e.target as HTMLImageElement).style.display = "none";
 };
 

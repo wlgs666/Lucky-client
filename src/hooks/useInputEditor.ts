@@ -3,10 +3,9 @@
  * 处理光标、选区、内容解析、草稿管理、文件队列等
  */
 
-import { ref, Ref, nextTick, reactive, computed } from "vue";
 import { IMessagePart } from "@/models";
-import { FileType, fromFileName } from "@/constants";
 import { storage } from "@/utils/Storage";
+import { computed, nextTick, ref, Ref } from "vue";
 
 // ==================== 文件队列项类型 ====================
 
@@ -16,6 +15,7 @@ export interface PendingFile {
   name: string;
   size: number;
   type: string;
+  kind: "image" | "video" | "file";
   preview?: string;
   uploading?: boolean;
   progress?: number;
@@ -26,6 +26,79 @@ const ZERO_WIDTH_REGEX = /[\u200B\uFEFF\u200C\u200D]/g;
 
 // 草稿存储 key
 const DRAFT_STORAGE_KEY = "chat_drafts";
+
+type DetectedFileKind = "image" | "video" | "file";
+
+/**
+ * 判断字节序列是否匹配目标魔数
+ */
+const matchBytes = (source: Uint8Array, target: number[], offset = 0): boolean => {
+  if (source.length < offset + target.length) return false;
+  for (let i = 0; i < target.length; i++) {
+    if (source[offset + i] !== target[i]) return false;
+  }
+  return true;
+};
+
+/**
+ * 判断某一段是否等于指定 ASCII 字符串
+ */
+const matchAscii = (source: Uint8Array, text: string, offset = 0): boolean => {
+  if (source.length < offset + text.length) return false;
+  for (let i = 0; i < text.length; i++) {
+    if (source[offset + i] !== text.charCodeAt(i)) return false;
+  }
+  return true;
+};
+
+/**
+ * 读取文件头部字节，避免加载整个文件
+ */
+const readHeadBytes = async (file: File, maxBytes = 64): Promise<Uint8Array> => {
+  const chunk = file.slice(0, maxBytes);
+  const buffer = await chunk.arrayBuffer();
+  return new Uint8Array(buffer);
+};
+
+/**
+ * 通过文件魔数识别文件大类（image / video / file）
+ * 仅在魔数无法识别时，才回退使用 MIME，避免后缀名欺骗
+ */
+const detectFileKindByMagicNumber = async (file: File): Promise<DetectedFileKind> => {
+  try {
+    const head = await readHeadBytes(file, 64);
+
+    // ===== 图片魔数 =====
+    if (matchBytes(head, [0xff, 0xd8, 0xff])) return "image"; // JPEG
+    if (matchBytes(head, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image"; // PNG
+    if (matchAscii(head, "GIF8")) return "image"; // GIF
+    if (matchAscii(head, "BM")) return "image"; // BMP
+    if (matchAscii(head, "RIFF") && matchAscii(head, "WEBP", 8)) return "image"; // WEBP
+    if (matchAscii(head, "ftyp", 4) && (matchAscii(head, "heic", 8) || matchAscii(head, "heif", 8) || matchAscii(head, "avif", 8))) return "image"; // HEIC/HEIF/AVIF
+
+    // ===== 视频魔数 =====
+    if (matchAscii(head, "ftyp", 4)) return "video"; // MP4/MOV 等 ISO BMFF 容器
+    if (matchAscii(head, "RIFF") && matchAscii(head, "AVI ", 8)) return "video"; // AVI
+    if (matchBytes(head, [0x1a, 0x45, 0xdf, 0xa3])) return "video"; // MKV / WEBM
+    if (matchAscii(head, "FLV")) return "video"; // FLV
+  } catch {
+    // 读取失败时走 MIME 回退
+  }
+
+  // 魔数无法识别时，使用浏览器 MIME 作为保底
+  if (file.type.startsWith("image/")) return "image";
+  if (file.type.startsWith("video/")) return "video";
+  return "file";
+};
+
+/**
+ * 将识别结果映射为消息体 part.type
+ */
+const toMessagePartType = (kind: DetectedFileKind): "image" | "video" | "file" => {
+  if (kind === "image") return "image";
+  if (kind === "video") return "video";
+  return "file";
+};
 
 /** 移除零宽字符 */
 export const stripZero = (s = "") => s.replace(ZERO_WIDTH_REGEX, "");
@@ -62,7 +135,7 @@ class DraftManager {
   private draftMap: Record<string, string> = {};
   private initialized = false;
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): DraftManager {
     if (!DraftManager.instance) {
@@ -164,8 +237,8 @@ export function useInputEditor(options: UseInputEditorOptions) {
   const generateFileId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   /** 创建文件预览 URL */
-  const createPreview = async (file: File): Promise<string | undefined> => {
-    if (!file.type.startsWith("image/")) return undefined;
+  const createPreview = async (file: File, kind: DetectedFileKind): Promise<string | undefined> => {
+    if (kind !== "image") return undefined;
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
@@ -204,13 +277,15 @@ export function useInputEditor(options: UseInputEditorOptions) {
         continue;
       }
 
-      const preview = await createPreview(file);
+      const kind = await detectFileKindByMagicNumber(file);
+      const preview = await createPreview(file, kind);
       pendingFiles.value.push({
         id: generateFileId(),
         file,
         name: file.name,
         size: file.size,
         type: file.type,
+        kind,
         preview,
       });
       added++;
@@ -244,14 +319,8 @@ export function useInputEditor(options: UseInputEditorOptions) {
   /** 获取待发送的文件部分 */
   const getFileParts = (): IMessagePart[] => {
     return pendingFiles.value.map((item) => {
-      const fileType = fromFileName(item.name);
-      if (fileType === FileType.Image) {
-        return { type: "image" as const, content: "", file: item.file };
-      } else if (fileType === FileType.Video) {
-        return { type: "video" as const, content: "", file: item.file };
-      } else {
-        return { type: "file" as const, content: "", file: item.file };
-      }
+      const partType = toMessagePartType(item.kind);
+      return { type: partType, content: "", file: item.file };
     });
   };
 
@@ -606,17 +675,12 @@ export function useInputEditor(options: UseInputEditorOptions) {
   // ==================== 文件处理 ====================
 
   /** 从文件列表创建消息部分 */
-  const createPartsFromFiles = (files: FileList | File[]): IMessagePart[] => {
+  const createPartsFromFiles = async (files: FileList | File[]): Promise<IMessagePart[]> => {
     const parts: IMessagePart[] = [];
     for (const file of Array.from(files)) {
-      const fileType = fromFileName(file.name);
-      if (fileType === FileType.Image) {
-        parts.push({ type: "image", content: "", file });
-      } else if (fileType === FileType.Video) {
-        parts.push({ type: "video", content: "", file });
-      } else {
-        parts.push({ type: "file", content: "", file });
-      }
+      const kind = await detectFileKindByMagicNumber(file);
+      const partType = toMessagePartType(kind);
+      parts.push({ type: partType, content: "", file });
     }
     return parts;
   };

@@ -92,6 +92,7 @@ const buildFilePayload = (message: any) => ({
 const emitFileEvent = (event: string, message: any) => {
   globalEventBus.emit(event as any, buildFilePayload(message));
 };
+const promiseTry = <T>(fn: () => T | Promise<T>) => Promise.resolve().then(fn);
 
 const handleOpenFile = (message: any) => emitFileEvent(Events.MESSAGE_FILE_OPEN, message);
 const handleDownloadFile = (message: any) => emitFileEvent(Events.MESSAGE_FILE_DOWNLOAD, message);
@@ -120,6 +121,26 @@ function handleForward(msg: typeof props.message): void {
   });
 }
 
+const actionHandlers: Record<string, (target: typeof props.message) => void | Promise<void>> = {
+  reply: (target) => handleReply(target),
+  forward: (target) => handleForward(target),
+  delete: async (target) => {
+    await ElMessageBox.confirm(
+      t("components.dialog.deleteMessage.confirm"),
+      t("components.dialog.title.warning"),
+      {
+        distinguishCancelAndClose: true,
+        confirmButtonText: t("components.dialog.buttons.confirm"),
+        cancelButtonText: t("components.dialog.buttons.cancel"),
+        type: "warning"
+      }
+    );
+    globalEventBus.emit(Events.MESSAGE_DELETE, target);
+  },
+  openPath: (target) => emitFileEvent(Events.MESSAGE_FILE_OPEN_PATH, target),
+  preview: (target) => emitFileEvent(Events.MESSAGE_FILE_PREVIEW, target)
+};
+
 // ===================== 右键菜单 =====================
 const { menuConfig, setTarget } = useMessageContextMenu<typeof props.message>({
   getOptions: () => [
@@ -133,39 +154,9 @@ const { menuConfig, setTarget } = useMessageContextMenu<typeof props.message>({
   ],
   onAction: async (action, item) => {
     const target = item ?? props.message;
-    try {
-      if (action === "reply") {
-        handleReply(target);
-        return;
-      }
-      if (action === "forward") {
-        handleForward(target);
-        return;
-      }
-      if (action === "delete") {
-        await ElMessageBox.confirm(
-          t("components.dialog.deleteMessage.confirm"),
-          t("components.dialog.title.warning"),
-          {
-            distinguishCancelAndClose: true,
-            confirmButtonText: t("components.dialog.buttons.confirm"),
-            cancelButtonText: t("components.dialog.buttons.cancel"),
-            type: "warning"
-          }
-        );
-        globalEventBus.emit(Events.MESSAGE_DELETE, target);
-        return;
-      }
-      if (action === "openPath") {
-        emitFileEvent(Events.MESSAGE_FILE_OPEN_PATH, target);
-        return;
-      }
-      if (action === "preview") {
-        emitFileEvent(Events.MESSAGE_FILE_PREVIEW, target);
-      }
-    } catch {
-      /* cancel */
-    }
+    const handler = actionHandlers[action];
+    if (!handler) return;
+    await promiseTry(() => handler(target)).catch(() => undefined);
   },
   beforeShow: () => setTarget(props.message)
 });

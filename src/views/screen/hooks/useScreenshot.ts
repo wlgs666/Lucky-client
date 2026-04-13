@@ -1,8 +1,8 @@
-import { onBeforeUnmount, ref, shallowReactive } from "vue";
+import ClipboardManager from "@/utils/Clipboard"; // 你已有的剪贴板管理器
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { PhysicalPosition, PhysicalSize } from "@tauri-apps/api/window";
-import ClipboardManager from "@/utils/Clipboard"; // 你已有的剪贴板管理器
+import { onBeforeUnmount, ref, shallowReactive } from "vue";
 import type { MultiScreenCapture, MultiScreenInfo, ScreenshotAPI, ScreenshotPlugin, ToolType } from "./types";
 import { createUseCanvasTool } from "./useCanvasTool";
 
@@ -75,9 +75,6 @@ export function useScreenshot() {
   const resizeHandleHitPadding = 6; // CSS px, 扩大命中范围但不放大视觉控制点
   // 截图原图（Image 元素）
   let screenshotImage: HTMLImageElement | null = null;
-  // 图像数据缓存（如果需要快速导出）
-  let screenshotBlobBuffer: Uint8Array | null = null;
-
   // 插件系统
   const plugins: ScreenshotPlugin[] = [];
 
@@ -229,7 +226,6 @@ export function useScreenshot() {
           };
         }
         screenshotImage = null;
-        screenshotBlobBuffer = null;
         return;
       } catch (e) {
         console.log("[screenshot] capture_all_screens failed, fallback to old api", e);
@@ -269,13 +265,9 @@ export function useScreenshot() {
         drawRectangle(0, 0, canvasW, canvasH, 1);
 
         emitPluginEvent("onCapture", { width: canvasW, height: canvasH, image: screenshotImage });
-        // 可把二进制 buffer 缓存起来（用于导出）
-        const binary: Uint8Array = Uint8Array.from(atob(base64), c => c.charCodeAt(0)); // 浏览器端转换
-        screenshotBlobBuffer = binary;
       };
     } catch (e) {
       console.log(e);
-      screenshotBlobBuffer = null;
     }
   }
 
@@ -375,22 +367,17 @@ export function useScreenshot() {
   }
 
   function getCursorByDir(dir: ResizeDir) {
-    switch (dir) {
-      case "n":
-      case "s":
-        return "ns-resize";
-      case "e":
-      case "w":
-        return "ew-resize";
-      case "ne":
-      case "sw":
-        return "nesw-resize";
-      case "nw":
-      case "se":
-        return "nwse-resize";
-      default:
-        return "default";
-    }
+    const cursorMap: Record<string, string> = {
+      n: "ns-resize",
+      s: "ns-resize",
+      e: "ew-resize",
+      w: "ew-resize",
+      ne: "nesw-resize",
+      sw: "nesw-resize",
+      nw: "nwse-resize",
+      se: "nwse-resize"
+    };
+    return dir ? (cursorMap[dir] || "default") : "default";
   }
 
   function updateCursorByPoint(x: number, y: number) {
@@ -783,7 +770,6 @@ export function useScreenshot() {
     imgCtx.value?.clearRect(0, 0, imgCanvas.value!.width, imgCanvas.value!.height);
 
     screenshotImage = null;
-    screenshotBlobBuffer = null;
 
     // 隐藏放大镜 & 按钮
     if (magnifier.value) magnifier.value.style.display = "none";
@@ -845,7 +831,7 @@ export function useScreenshot() {
       // 单屏时保持原策略（覆盖任务栏，避免工作区缩放偏移）
       try {
         await getCurrentWebviewWindow().setFullscreen(true);
-      } catch {}
+      } catch { }
     }
     await initCanvases();
     await captureFullScreen(displayInfo);

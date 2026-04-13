@@ -56,7 +56,7 @@
           </el-button>
           <div ref="selectionRef" class="selection-item-container">
             <el-row :gutter="20">
-              <el-col v-for="(item, index) in selectItem" :key="item.friendId" :span="8">
+              <el-col v-for="item in selectItem" :key="item.friendId" :span="8">
                 <div style="position: relative; display: flex; justify-content: center">
                   <Avatar :avatar="item.avatar || ' '" :name="item.name" :width="45" class="member-avatar" />
                   <el-button circle class="cancel-el-btn" icon="" @click.stop="cancelSelection(item)"
